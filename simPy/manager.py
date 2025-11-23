@@ -5,14 +5,10 @@ AGENTE MANAGER - LÓGICA CENTRAL DE DECISIÓN
 Responsabilidades:
 1. Recibir datos de riesgo de los agentes exploradores
 2. Evaluar riesgos con umbrales y reglas
-3. Establecer prioridades y protocolo de acción
-4. Enviar instrucciones formales al Agente Físico
-5. Enviar información de estado al Agente UI
-
-NO hace:
-- Movimiento de agentes (lo hace Agente Físico)
-- Exploración directa (lo hace Agente Físico)
-- Visualización (lo hace Agente UI)
+3. Detectar jitomates listos para cosechar
+4. Establecer prioridades y protocolo de acción
+5. Enviar instrucciones de COSECHA y TRATAMIENTO al Agente Físico
+6. Enviar información de estado al Agente UI
 """
 
 from typing import List, Dict, Tuple, Optional, Callable
@@ -45,6 +41,14 @@ class TipoAmenaza(Enum):
     TEMPERATURA_BAJA = "Temperatura baja"
 
 
+class EstadoMaduracion(Enum):
+    """Estados de maduración de los jitomates"""
+    VERDE = "Verde"
+    EN_MADURACION = "En maduración"
+    MADURO = "Maduro"
+    SOBRE_MADURO = "Sobre maduro"
+
+
 @dataclass
 class DatosExploracion:
     """
@@ -58,20 +62,45 @@ class DatosExploracion:
     humedad: float
     nivel_plagas: float
     nivel_nutrientes: float
+    
+    # NUEVOS CAMPOS PARA COSECHA
+    nivel_maduracion: float  # 0-10: 0=verde, 5=en maduración, 8+=maduro
+    tamano_fruto: float      # 0-10: tamaño del jitomate
+    color_rgb: Tuple[int, int, int]  # Color RGB del fruto (para análisis)
+    frutos_disponibles: int  # Cantidad de jitomates en esta celda
+    
     timestamp: datetime = field(default_factory=datetime.now)
     agente_id: int = 0
 
 
 @dataclass
-class InstruccionTratamiento:
+class InstruccionCosecha:
     """
-    Instrucción que el Manager envía al Agente Físico
+    Instrucción de COSECHA que el Manager envía al Agente Físico
     
-    AGENTE FÍSICO: Recibe esto para ejecutar un tratamiento
+    AGENTE FÍSICO: Recibe esto para cosechar jitomates maduros
     """
     celda_objetivo: Tuple[int, int]
-    tipo_tratamiento: str  # "aplicar_pesticida", "riego", "fertilizacion", etc.
-    nivel_urgencia: int  # 1-5, siendo 5 la más urgente
+    frutos_a_cosechar: int
+    nivel_maduracion: float
+    prioridad: int  # 1-5, siendo 5 la más urgente (sobre maduros)
+    descripcion: str
+    timestamp: datetime = field(default_factory=datetime.now)
+    
+    def __str__(self):
+        return f"Cosecha en {self.celda_objetivo}: {self.frutos_a_cosechar} frutos (Prioridad: {self.prioridad})"
+
+
+@dataclass
+class InstruccionTratamiento:
+    """
+    Instrucción de TRATAMIENTO que el Manager envía al Agente Físico
+    
+    AGENTE FÍSICO: Recibe esto para aplicar tratamientos
+    """
+    celda_objetivo: Tuple[int, int]
+    tipo_tratamiento: str
+    nivel_urgencia: int  # 1-5
     tipo_amenaza: str
     descripcion: str
     timestamp: datetime = field(default_factory=datetime.now)
@@ -94,6 +123,12 @@ class EstadoCelda:
     valor_riesgo: float
     requiere_tratamiento: bool
     prioridad: int
+    
+    # NUEVOS CAMPOS PARA VISUALIZAR COSECHA
+    estado_maduracion: EstadoMaduracion
+    frutos_disponibles: int
+    listo_para_cosechar: bool
+    
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -111,6 +146,13 @@ class MetricasSistema:
     celdas_criticas: int = 0
     celdas_alto_riesgo: int = 0
     tratamientos_ordenados: int = 0
+    
+    # NUEVAS MÉTRICAS DE COSECHA
+    frutos_totales_detectados: int = 0
+    frutos_listos_cosecha: int = 0
+    cosechas_ordenadas: int = 0
+    frutos_cosechados: int = 0  # Actualizado por Agente Físico
+    
     timestamp: datetime = field(default_factory=datetime.now)
 
 
@@ -122,11 +164,14 @@ class AgenteManager:
     """
     Agente Manager: Núcleo de decisión del sistema
     
-    FLUJO:
+    FLUJO COMPLETO:
     1. Agente Físico explora → envía DatosExploracion
-    2. Manager evalúa riesgos → determina si necesita tratamiento
-    3. Si necesita tratamiento → envía InstruccionTratamiento al Agente Físico
-    4. Siempre → envía EstadoCelda y MetricasSistema a UI
+    2. Manager evalúa:
+       a) ¿Hay jitomates maduros? → InstruccionCosecha
+       b) ¿Hay problemas? → InstruccionTratamiento
+    3. Prioriza: COSECHA primero, luego tratamientos
+    4. Envía instrucciones al Agente Físico
+    5. Actualiza UI con estado completo
     """
     
     def __init__(self, grid_filas: int = 10, grid_columnas: int = 10):
@@ -145,20 +190,25 @@ class AgenteManager:
         # Almacenamiento de datos
         self.mapa_estados: Dict[Tuple[int, int], EstadoCelda] = {}
         self.datos_crudos: Dict[Tuple[int, int], DatosExploracion] = {}
-        self.tratamientos_pendientes: List[InstruccionTratamiento] = []
+        
+        # Colas de instrucciones separadas
+        self.cola_cosechas: List[InstruccionCosecha] = []
+        self.cola_tratamientos: List[InstruccionTratamiento] = []
         
         # Control de exploración
         self.celdas_exploradas: set = set()
         
         # Métricas
         self.tiempo_inicio = time.time()
+        self.cosechas_ordenadas_total = 0
         self.tratamientos_ordenados_total = 0
+        self.frutos_cosechados_total = 0
         
         # Callbacks para comunicación con otros agentes
         self._callback_agente_fisico: Optional[Callable] = None
         self._callback_agente_ui: Optional[Callable] = None
         
-        # Umbrales de riesgo (configurables)
+        # Umbrales de riesgo
         self.umbrales = {
             'temperatura_min': 15.0,
             'temperatura_max': 30.0,
@@ -169,55 +219,45 @@ class AgenteManager:
             'nivel_nutrientes_bajo': 4.0,
         }
         
+        # NUEVOS: Umbrales de cosecha
+        self.umbrales_cosecha = {
+            'maduracion_minima': 7.0,      # Nivel mínimo para cosechar
+            'maduracion_optima': 8.5,      # Nivel óptimo
+            'maduracion_sobre': 9.5,       # Sobre maduro (urgente)
+            'tamano_minimo': 5.0,          # Tamaño mínimo del fruto
+        }
+        
         print(f"[Manager] Inicializado - Grid: {grid_filas}x{grid_columnas}")
+        print(f"[Manager] Sistema de COSECHA activado")
     
     # ========================================================================
     # CONFIGURACIÓN
     # ========================================================================
     
-    def registrar_agente_fisico(self, callback: Callable[[InstruccionTratamiento], None]):
+    def registrar_agente_fisico(self, callback: Callable):
         """
         Registra el callback para comunicarse con el Agente Físico
         
         Args:
-            callback: Función que recibe InstruccionTratamiento
-            
-        Ejemplo:
-            def recibir_instruccion(instruccion: InstruccionTratamiento):
-                print(f"Ejecutando: {instruccion}")
-            
-            manager.registrar_agente_fisico(recibir_instruccion)
+            callback: Función que recibe InstruccionCosecha o InstruccionTratamiento
         """
         self._callback_agente_fisico = callback
         print("[Manager] Agente Físico registrado")
     
     def registrar_agente_ui(self, callback: Callable[[List[EstadoCelda], MetricasSistema], None]):
-        """
-        Registra el callback para comunicarse con el Agente UI
-        
-        Args:
-            callback: Función que recibe (estados, metricas)
-            
-        Ejemplo:
-            def actualizar_visualizacion(estados: List[EstadoCelda], metricas: MetricasSistema):
-                for estado in estados:
-                    ui.pintar_celda(estado.x, estado.y, estado.nivel_riesgo)
-                ui.actualizar_panel(metricas)
-            
-            manager.registrar_agente_ui(actualizar_visualizacion)
-        """
+        """Registra el callback para comunicarse con el Agente UI"""
         self._callback_agente_ui = callback
         print("[Manager] Agente UI registrado")
     
     def configurar_umbrales(self, nuevos_umbrales: Dict[str, float]):
-        """
-        Configura o actualiza los umbrales de riesgo
-        
-        Args:
-            nuevos_umbrales: Diccionario con umbrales a actualizar
-        """
+        """Configura umbrales de riesgo"""
         self.umbrales.update(nuevos_umbrales)
-        print(f"[Manager] Umbrales actualizados")
+        print(f"[Manager] Umbrales de riesgo actualizados")
+    
+    def configurar_umbrales_cosecha(self, nuevos_umbrales: Dict[str, float]):
+        """Configura umbrales de cosecha"""
+        self.umbrales_cosecha.update(nuevos_umbrales)
+        print(f"[Manager] Umbrales de cosecha actualizados")
     
     # ========================================================================
     # RECEPCIÓN DE DATOS (DESDE AGENTE FÍSICO)
@@ -227,17 +267,12 @@ class AgenteManager:
         """
         MÉTODO PRINCIPAL: Recibe datos del Agente Físico
         
-        El Agente Físico llama este método después de explorar una celda
-        
-        Args:
-            datos: DatosExploracion con info de sensores
-            
         Proceso:
-        1. Almacena datos crudos
-        2. Evalúa riesgo
-        3. Determina si necesita tratamiento
-        4. Si necesita → envía instrucción a Agente Físico
-        5. Actualiza UI con nuevo estado
+        1. Almacena datos
+        2. Evalúa COSECHA (¿hay frutos maduros?)
+        3. Evalúa RIESGOS (¿hay problemas?)
+        4. Genera instrucciones según prioridad
+        5. Actualiza UI
         """
         pos = (datos.x, datos.y)
         
@@ -245,26 +280,115 @@ class AgenteManager:
         self.datos_crudos[pos] = datos
         self.celdas_exploradas.add(pos)
         
-        # EVALUAR RIESGO (Lógica central de decisión)
+        # 1. EVALUAR COSECHA (prioridad)
+        if self._requiere_cosecha(datos):
+            instruccion_cosecha = self._generar_instruccion_cosecha(datos)
+            self.cola_cosechas.append(instruccion_cosecha)
+            self.cosechas_ordenadas_total += 1
+            
+            # ENVIAR INSTRUCCIÓN DE COSECHA
+            if self._callback_agente_fisico:
+                self._callback_agente_fisico(instruccion_cosecha)
+            
+            print(f"[Manager] 🍅 COSECHA ordenada: {instruccion_cosecha}")
+        
+        # 2. EVALUAR RIESGOS
         estado_celda = self._evaluar_riesgo(datos)
         self.mapa_estados[pos] = estado_celda
         
-        print(f"[Manager] Celda ({datos.x}, {datos.y}) evaluada - Riesgo: {estado_celda.nivel_riesgo.name}")
+        print(f"[Manager] Celda ({datos.x}, {datos.y}) - Riesgo: {estado_celda.nivel_riesgo.name} | Maduración: {estado_celda.estado_maduracion.name}")
         
-        # Si requiere tratamiento → generar instrucción
+        # 3. SI HAY PROBLEMAS → generar tratamiento
         if estado_celda.requiere_tratamiento:
-            instruccion = self._generar_instruccion_tratamiento(estado_celda)
-            self.tratamientos_pendientes.append(instruccion)
+            instruccion_tratamiento = self._generar_instruccion_tratamiento(estado_celda)
+            self.cola_tratamientos.append(instruccion_tratamiento)
             self.tratamientos_ordenados_total += 1
             
-            # ENVIAR A AGENTE FÍSICO
+            # ENVIAR INSTRUCCIÓN DE TRATAMIENTO
             if self._callback_agente_fisico:
-                self._callback_agente_fisico(instruccion)
+                self._callback_agente_fisico(instruccion_tratamiento)
             
-            print(f"[Manager] ⚠️  Instrucción enviada a Agente Físico: {instruccion}")
+            print(f"[Manager] ⚠️  TRATAMIENTO ordenado: {instruccion_tratamiento}")
         
-        # ENVIAR A UI (siempre)
+        # 4. ACTUALIZAR UI
         self._notificar_ui()
+    
+    def reportar_cosecha_completada(self, celda: Tuple[int, int], frutos_cosechados: int):
+        """
+        El Agente Físico llama esto después de completar una cosecha
+        
+        Args:
+            celda: Posición donde se cosechó
+            frutos_cosechados: Cantidad de frutos recolectados
+        """
+        self.frutos_cosechados_total += frutos_cosechados
+        print(f"[Manager] ✅ Cosecha completada en {celda}: {frutos_cosechados} frutos")
+        print(f"[Manager] Total cosechado: {self.frutos_cosechados_total} frutos")
+        
+        # Actualizar UI con nuevas métricas
+        self._notificar_ui()
+    
+    # ========================================================================
+    # LÓGICA DE COSECHA
+    # ========================================================================
+    
+    def _requiere_cosecha(self, datos: DatosExploracion) -> bool:
+        """
+        Determina si una celda tiene jitomates listos para cosechar
+        
+        Criterios:
+        - Nivel de maduración >= umbral mínimo
+        - Tamaño del fruto >= tamaño mínimo
+        - Hay frutos disponibles
+        """
+        return (
+            datos.frutos_disponibles > 0 and
+            datos.nivel_maduracion >= self.umbrales_cosecha['maduracion_minima'] and
+            datos.tamano_fruto >= self.umbrales_cosecha['tamano_minimo']
+        )
+    
+    def _generar_instruccion_cosecha(self, datos: DatosExploracion) -> InstruccionCosecha:
+        """
+        Genera instrucción de cosecha para el Agente Físico
+        
+        PRIORIZACIÓN:
+        - Sobre maduros (>9.5): Prioridad 5 (URGENTE - se pueden echar a perder)
+        - Maduros óptimos (8.5-9.5): Prioridad 4
+        - Maduros (7.0-8.5): Prioridad 3
+        """
+        maduracion = datos.nivel_maduracion
+        
+        if maduracion >= self.umbrales_cosecha['maduracion_sobre']:
+            # SOBRE MADUROS - ¡Urgente!
+            prioridad = 5
+            descripcion = "URGENTE: Frutos sobre maduros, cosechar inmediatamente"
+        elif maduracion >= self.umbrales_cosecha['maduracion_optima']:
+            # ÓPTIMOS
+            prioridad = 4
+            descripcion = "Frutos en punto óptimo de maduración"
+        else:
+            # MADUROS
+            prioridad = 3
+            descripcion = "Frutos maduros, listos para cosechar"
+        
+        return InstruccionCosecha(
+            celda_objetivo=(datos.x, datos.y),
+            frutos_a_cosechar=datos.frutos_disponibles,
+            nivel_maduracion=maduracion,
+            prioridad=prioridad,
+            descripcion=descripcion
+        )
+    
+    def _determinar_estado_maduracion(self, nivel: float) -> EstadoMaduracion:
+        """Determina el estado de maduración según el nivel"""
+        if nivel >= self.umbrales_cosecha['maduracion_sobre']:
+            return EstadoMaduracion.SOBRE_MADURO
+        elif nivel >= self.umbrales_cosecha['maduracion_minima']:
+            return EstadoMaduracion.MADURO
+        elif nivel >= 4.0:
+            return EstadoMaduracion.EN_MADURACION
+        else:
+            return EstadoMaduracion.VERDE
     
     # ========================================================================
     # LÓGICA DE EVALUACIÓN DE RIESGOS
@@ -273,10 +397,6 @@ class AgenteManager:
     def _evaluar_riesgo(self, datos: DatosExploracion) -> EstadoCelda:
         """
         Evalúa el nivel de riesgo basado en datos de sensores
-        Aplica umbrales y reglas para determinar amenazas
-        
-        Returns:
-            EstadoCelda con la evaluación completa
         """
         riesgos_detectados = []
         
@@ -285,13 +405,11 @@ class AgenteManager:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.TEMPERATURA_BAJA,
                 'valor': abs(datos.temperatura - self.umbrales['temperatura_min']),
-                'descripcion': f"Temperatura baja ({datos.temperatura:.1f}°C)"
             })
         elif datos.temperatura > self.umbrales['temperatura_max']:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.TEMPERATURA_ALTA,
                 'valor': abs(datos.temperatura - self.umbrales['temperatura_max']),
-                'descripcion': f"Temperatura alta ({datos.temperatura:.1f}°C)"
             })
         
         # REGLA 2: Evaluar humedad
@@ -299,27 +417,23 @@ class AgenteManager:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.SEQUIA,
                 'valor': abs(datos.humedad - self.umbrales['humedad_min']),
-                'descripcion': f"Humedad baja ({datos.humedad:.1f}%)"
             })
         elif datos.humedad > self.umbrales['humedad_max']:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.EXCESO_AGUA,
                 'valor': abs(datos.humedad - self.umbrales['humedad_max']),
-                'descripcion': f"Humedad alta ({datos.humedad:.1f}%)"
             })
         
-        # REGLA 3: Evaluar plagas (CRÍTICO)
+        # REGLA 3: Evaluar plagas
         if datos.nivel_plagas >= self.umbrales['nivel_plagas_critico']:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.PLAGA,
                 'valor': datos.nivel_plagas,
-                'descripcion': f"Plaga crítica (nivel {datos.nivel_plagas:.1f})"
             })
         elif datos.nivel_plagas >= self.umbrales['nivel_plagas_alto']:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.PLAGA,
                 'valor': datos.nivel_plagas,
-                'descripcion': f"Plaga detectada (nivel {datos.nivel_plagas:.1f})"
             })
         
         # REGLA 4: Evaluar nutrientes
@@ -327,48 +441,47 @@ class AgenteManager:
             riesgos_detectados.append({
                 'tipo': TipoAmenaza.NUTRIENTES_BAJOS,
                 'valor': abs(datos.nivel_nutrientes - self.umbrales['nivel_nutrientes_bajo']),
-                'descripcion': f"Nutrientes bajos (nivel {datos.nivel_nutrientes:.1f})"
             })
         
-        # Si no hay riesgos → estado normal
+        # Determinar estado de maduración
+        estado_maduracion = self._determinar_estado_maduracion(datos.nivel_maduracion)
+        listo_cosechar = self._requiere_cosecha(datos)
+        
+        # Si no hay riesgos
         if not riesgos_detectados:
             return EstadoCelda(
-                x=datos.x,
-                y=datos.y,
+                x=datos.x, y=datos.y,
                 nivel_riesgo=NivelRiesgo.BAJO,
                 tipo_amenaza="Normal",
                 valor_riesgo=0.0,
                 requiere_tratamiento=False,
-                prioridad=1
+                prioridad=1,
+                estado_maduracion=estado_maduracion,
+                frutos_disponibles=datos.frutos_disponibles,
+                listo_para_cosechar=listo_cosechar
             )
         
-        # Seleccionar el riesgo más crítico
+        # Hay riesgos - seleccionar el más crítico
         riesgo_principal = max(riesgos_detectados, key=lambda r: r['valor'])
-        
-        # ESTABLECER PRIORIDADES Y PROTOCOLO
         nivel, prioridad, requiere = self._calcular_nivel_y_prioridad(
             riesgo_principal['valor'], 
             riesgo_principal['tipo']
         )
         
         return EstadoCelda(
-            x=datos.x,
-            y=datos.y,
+            x=datos.x, y=datos.y,
             nivel_riesgo=nivel,
             tipo_amenaza=riesgo_principal['tipo'].value,
             valor_riesgo=riesgo_principal['valor'],
             requiere_tratamiento=requiere,
-            prioridad=prioridad
+            prioridad=prioridad,
+            estado_maduracion=estado_maduracion,
+            frutos_disponibles=datos.frutos_disponibles,
+            listo_para_cosechar=listo_cosechar
         )
     
     def _calcular_nivel_y_prioridad(self, valor: float, amenaza: TipoAmenaza) -> Tuple[NivelRiesgo, int, bool]:
-        """
-        Determina nivel de riesgo, prioridad y si requiere tratamiento
-        
-        Returns:
-            (NivelRiesgo, prioridad 1-5, requiere_tratamiento)
-        """
-        # Lógica especial para plagas (más crítico)
+        """Determina nivel de riesgo, prioridad y si requiere tratamiento"""
         if amenaza == TipoAmenaza.PLAGA:
             if valor >= 9.0:
                 return (NivelRiesgo.CRITICO, 5, True)
@@ -379,7 +492,6 @@ class AgenteManager:
             else:
                 return (NivelRiesgo.BAJO, 2, False)
         
-        # Lógica para otras amenazas
         if valor >= 15.0:
             return (NivelRiesgo.CRITICO, 5, True)
         elif valor >= 10.0:
@@ -390,16 +502,11 @@ class AgenteManager:
             return (NivelRiesgo.BAJO, 2, False)
     
     # ========================================================================
-    # GENERACIÓN DE INSTRUCCIONES (PARA AGENTE FÍSICO)
+    # GENERACIÓN DE INSTRUCCIONES DE TRATAMIENTO
     # ========================================================================
     
     def _generar_instruccion_tratamiento(self, estado: EstadoCelda) -> InstruccionTratamiento:
-        """
-        Genera la instrucción formal de tratamiento para el Agente Físico
-        
-        PROTOCOLO DE ACCIÓN según tipo de amenaza
-        """
-        # Mapeo de amenaza → tratamiento
+        """Genera instrucción de tratamiento para el Agente Físico"""
         protocolos = {
             TipoAmenaza.PLAGA.value: {
                 'tratamiento': 'aplicar_pesticida',
@@ -453,25 +560,17 @@ class AgenteManager:
         if not self._callback_agente_ui:
             return
         
-        # Preparar lista de estados
         estados = list(self.mapa_estados.values())
-        
-        # Calcular métricas
         metricas = self._calcular_metricas()
-        
-        # ENVIAR A UI
         self._callback_agente_ui(estados, metricas)
     
     def _calcular_metricas(self) -> MetricasSistema:
         """Calcula métricas actuales del sistema"""
-        celdas_criticas = sum(
-            1 for e in self.mapa_estados.values() 
-            if e.nivel_riesgo == NivelRiesgo.CRITICO
-        )
-        
-        celdas_alto = sum(
-            1 for e in self.mapa_estados.values() 
-            if e.nivel_riesgo == NivelRiesgo.ALTO
+        frutos_totales = sum(e.frutos_disponibles for e in self.mapa_estados.values())
+        frutos_listos = sum(
+            e.frutos_disponibles 
+            for e in self.mapa_estados.values() 
+            if e.listo_para_cosechar
         )
         
         return MetricasSistema(
@@ -479,9 +578,13 @@ class AgenteManager:
             celdas_exploradas=len(self.celdas_exploradas),
             celdas_totales=self.celdas_totales,
             porcentaje_analizado=(len(self.celdas_exploradas) / self.celdas_totales) * 100,
-            celdas_criticas=celdas_criticas,
-            celdas_alto_riesgo=celdas_alto,
-            tratamientos_ordenados=self.tratamientos_ordenados_total
+            celdas_criticas=sum(1 for e in self.mapa_estados.values() if e.nivel_riesgo == NivelRiesgo.CRITICO),
+            celdas_alto_riesgo=sum(1 for e in self.mapa_estados.values() if e.nivel_riesgo == NivelRiesgo.ALTO),
+            tratamientos_ordenados=self.tratamientos_ordenados_total,
+            frutos_totales_detectados=frutos_totales,
+            frutos_listos_cosecha=frutos_listos,
+            cosechas_ordenadas=self.cosechas_ordenadas_total,
+            frutos_cosechados=self.frutos_cosechados_total
         )
     
     # ========================================================================
@@ -489,14 +592,12 @@ class AgenteManager:
     # ========================================================================
     
     def obtener_estado_completo(self) -> Dict:
-        """
-        Retorna el estado completo del sistema
-        Útil para debugging o análisis
-        """
+        """Retorna el estado completo del sistema"""
         return {
             'mapa_estados': self.mapa_estados,
             'metricas': self._calcular_metricas(),
-            'tratamientos_pendientes': self.tratamientos_pendientes,
+            'cosechas_pendientes': self.cola_cosechas,
+            'tratamientos_pendientes': self.cola_tratamientos,
             'exploracion_completa': len(self.celdas_exploradas) == self.celdas_totales
         }
     
@@ -514,15 +615,20 @@ EXPLORACIÓN:
   • Progreso: {metricas.porcentaje_analizado:.1f}%
   • Tiempo transcurrido: {metricas.tiempo_transcurrido:.1f}s
 
+COSECHA:
+  • Frutos detectados: {metricas.frutos_totales_detectados}
+  • Frutos listos para cosechar: {metricas.frutos_listos_cosecha}
+  • Cosechas ordenadas: {metricas.cosechas_ordenadas}
+  • Frutos cosechados: {metricas.frutos_cosechados} 🍅
+
 ANÁLISIS DE RIESGOS:
   • Celdas críticas: {metricas.celdas_criticas}
   • Celdas alto riesgo: {metricas.celdas_alto_riesgo}
   • Tratamientos ordenados: {metricas.tratamientos_ordenados}
-  • Tratamientos pendientes: {len(self.tratamientos_pendientes)}
 
-UMBRALES CONFIGURADOS:
+UMBRALES DE COSECHA:
 """
-        for key, value in self.umbrales.items():
+        for key, value in self.umbrales_cosecha.items():
             reporte += f"  • {key}: {value}\n"
         
         reporte += f"{'='*70}\n"
@@ -534,11 +640,9 @@ UMBRALES CONFIGURADOS:
 # ============================================================================
 
 def ejemplo_uso():
-    """
-    Ejemplo de cómo integrar el Manager con Agente Físico y UI
-    """
+    """Ejemplo de cómo integrar el Manager con Agente Físico y UI"""
     print("\n" + "="*70)
-    print("EJEMPLO DE INTEGRACIÓN - AGENTE MANAGER")
+    print("EJEMPLO - SISTEMA CON COSECHA Y TRATAMIENTO")
     print("="*70 + "\n")
     
     # ========================================================================
@@ -549,14 +653,20 @@ def ejemplo_uso():
     # ========================================================================
     # 2. AGENTE FÍSICO: Registrar callback
     # ========================================================================
-    def agente_fisico_ejecutar(instruccion: InstruccionTratamiento):
-        """
-        Esta función la implementa el equipo del Agente Físico
-        """
-        print(f"\n[Agente Físico] 🤖 RECIBIDA: {instruccion}")
-        print(f"[Agente Físico] Moviendo a celda {instruccion.celda_objetivo}")
-        print(f"[Agente Físico] Ejecutando: {instruccion.descripcion}")
-        # Aquí va el código del agente físico para moverse y aplicar tratamiento
+    def agente_fisico_ejecutar(instruccion):
+        """Esta función la implementa el equipo del Agente Físico"""
+        if isinstance(instruccion, InstruccionCosecha):
+            print(f"\n[Agente Físico] 🤖 COSECHA: {instruccion}")
+            print(f"[Agente Físico] Moviendo a {instruccion.celda_objetivo}")
+            print(f"[Agente Físico] Recolectando {instruccion.frutos_a_cosechar} jitomates")
+            # Simular cosecha completada
+            time.sleep(0.2)
+            manager.reportar_cosecha_completada(instruccion.celda_objetivo, instruccion.frutos_a_cosechar)
+            
+        elif isinstance(instruccion, InstruccionTratamiento):
+            print(f"\n[Agente Físico] 🤖 TRATAMIENTO: {instruccion}")
+            print(f"[Agente Físico] Moviendo a {instruccion.celda_objetivo}")
+            print(f"[Agente Físico] Aplicando: {instruccion.descripcion}")
     
     manager.registrar_agente_fisico(agente_fisico_ejecutar)
     
@@ -564,48 +674,252 @@ def ejemplo_uso():
     # 3. AGENTE UI: Registrar callback
     # ========================================================================
     def agente_ui_actualizar(estados: List[EstadoCelda], metricas: MetricasSistema):
-        """
-        Esta función la implementa el equipo de UI
-        """
+        """Esta función la implementa el equipo de UI"""
         print(f"\n[Agente UI] 🖥️  Actualizando visualización")
         print(f"[Agente UI] Celdas: {len(estados)} | Progreso: {metricas.porcentaje_analizado:.1f}%")
-        # Aquí va el código para actualizar la interfaz gráfica
+        print(f"[Agente UI] Frutos listos: {metricas.frutos_listos_cosecha} | Cosechados: {metricas.frutos_cosechados}")
     
     manager.registrar_agente_ui(agente_ui_actualizar)
     
     # ========================================================================
     # 4. SIMULACIÓN: Agente Físico envía datos al explorar
     # ========================================================================
-    print("\n--- SIMULANDO EXPLORACIÓN ---\n")
+    print("\n--- SIMULANDO EXPLORACIÓN CON COSECHA ---\n")
     
     import random
     
-    # Simular que el agente físico explora 5 celdas
-    for i in range(5):
-        # El agente físico captura datos y los envía al Manager
-        datos = DatosExploracion(
-            x=random.randint(0, 9),
-            y=random.randint(0, 9),
-            temperatura=random.uniform(10, 35),
-            humedad=random.uniform(30, 90),
-            nivel_plagas=random.uniform(0, 10),
-            nivel_nutrientes=random.uniform(3, 10),
-            agente_id=0
-        )
-        
-        print(f"\n[Agente Físico] Explorando celda ({datos.x}, {datos.y})")
-        print(f"[Agente Físico] Datos capturados: T={datos.temperatura:.1f}°C, H={datos.humedad:.1f}%, Plagas={datos.nivel_plagas:.1f}")
+    # Simular exploración de 8 celdas
+    escenarios = [
+        # Celda 1: Jitomates maduros, sin problemas
+        DatosExploracion(
+            x=1, y=1,
+            temperatura=23.0, humedad=60.0,
+            nivel_plagas=2.0, nivel_nutrientes=7.0,
+            nivel_maduracion=8.5, tamano_fruto=7.5,
+            color_rgb=(255, 50, 50), frutos_disponibles=12
+        ),
+        # Celda 2: Jitomates sobre maduros (urgente!)
+        DatosExploracion(
+            x=3, y=2,
+            temperatura=24.0, humedad=55.0,
+            nivel_plagas=1.5, nivel_nutrientes=8.0,
+            nivel_maduracion=9.8, tamano_fruto=8.0,
+            color_rgb=(200, 20, 20), frutos_disponibles=8
+        ),
+        # Celda 3: Jitomates verdes con plagas
+        DatosExploracion(
+            x=5, y=3,
+            temperatura=22.0, humedad=58.0,
+            nivel_plagas=8.0, nivel_nutrientes=6.0,
+            nivel_maduracion=3.0, tamano_fruto=4.0,
+            color_rgb=(100, 180, 80), frutos_disponibles=15
+        ),
+        # Celda 4: Jitomates maduros pero con sequía
+        DatosExploracion(
+            x=7, y=4,
+            temperatura=28.0, humedad=25.0,
+            nivel_plagas=2.0, nivel_nutrientes=5.0,
+            nivel_maduracion=7.5, tamano_fruto=6.5,
+            color_rgb=(255, 80, 60), frutos_disponibles=10
+        ),
+        # Celda 5: Jitomates en maduración, todo normal
+        DatosExploracion(
+            x=2, y=6,
+            temperatura=22.0, humedad=62.0,
+            nivel_plagas=1.0, nivel_nutrientes=7.5,
+            nivel_maduracion=5.5, tamano_fruto=6.0,
+            color_rgb=(200, 150, 100), frutos_disponibles=18
+        ),
+        # Celda 6: Jitomates maduros óptimos
+        DatosExploracion(
+            x=8, y=7,
+            temperatura=23.5, humedad=58.0,
+            nivel_plagas=1.5, nivel_nutrientes=7.0,
+            nivel_maduracion=9.0, tamano_fruto=7.8,
+            color_rgb=(255, 40, 40), frutos_disponibles=14
+        ),
+        # Celda 7: Sin frutos, solo plantas con nutrientes bajos
+        DatosExploracion(
+            x=4, y=8,
+            temperatura=24.0, humedad=60.0,
+            nivel_plagas=2.0, nivel_nutrientes=3.0,
+            nivel_maduracion=0.0, tamano_fruto=0.0,
+            color_rgb=(80, 150, 70), frutos_disponibles=0
+        ),
+        # Celda 8: Jitomates maduros con temperatura alta
+        DatosExploracion(
+            x=9, y=9,
+            temperatura=33.0, humedad=62.0,
+            nivel_plagas=2.5, nivel_nutrientes=6.5,
+            nivel_maduracion=8.0, tamano_fruto=7.0,
+            color_rgb=(255, 60, 50), frutos_disponibles=11
+        ),
+    ]
+    
+    for datos in escenarios:
+        print(f"\n{'='*70}")
+        print(f"[Agente Físico] 📍 Explorando celda ({datos.x}, {datos.y})")
+        print(f"[Agente Físico] 🌡️  T={datos.temperatura:.1f}°C | H={datos.humedad:.1f}%")
+        print(f"[Agente Físico] 🐛 Plagas={datos.nivel_plagas:.1f} | 🌿 Nutrientes={datos.nivel_nutrientes:.1f}")
+        print(f"[Agente Físico] 🍅 Frutos: {datos.frutos_disponibles} | Maduración: {datos.nivel_maduracion:.1f}/10")
         
         # ENVIAR DATOS AL MANAGER
         manager.recibir_datos_exploracion(datos)
         
-        time.sleep(0.5)
+        time.sleep(0.3)
     
     # ========================================================================
     # 5. REPORTE FINAL
     # ========================================================================
     print("\n" + manager.generar_reporte())
+    
+    # Mostrar colas de instrucciones
+    print("\n📋 RESUMEN DE INSTRUCCIONES GENERADAS:\n")
+    
+    if manager.cola_cosechas:
+        print("🍅 COSECHAS (ordenadas por prioridad):")
+        cosechas_ordenadas = sorted(manager.cola_cosechas, key=lambda c: c.prioridad, reverse=True)
+        for i, cosecha in enumerate(cosechas_ordenadas, 1):
+            print(f"  {i}. {cosecha}")
+    
+    if manager.cola_tratamientos:
+        print("\n⚠️  TRATAMIENTOS (ordenados por urgencia):")
+        tratamientos_ordenados = sorted(manager.cola_tratamientos, key=lambda t: t.nivel_urgencia, reverse=True)
+        for i, tratamiento in enumerate(tratamientos_ordenados, 1):
+            print(f"  {i}. {tratamiento}")
+    
+    print("\n" + "="*70)
+    print("✅ SIMULACIÓN COMPLETADA")
+    print("="*70)
+
+
+# ============================================================================
+# GUÍA RÁPIDA PARA INTEGRACIÓN
+# ============================================================================
+
+def guia_integracion():
+    """
+    Guía rápida de cómo usar el Manager en tu equipo
+    """
+    print("""
+╔══════════════════════════════════════════════════════════════════════╗
+║               GUÍA DE INTEGRACIÓN - AGENTE MANAGER                   ║
+╚══════════════════════════════════════════════════════════════════════╝
+
+📦 IMPORTAR:
+───────────
+from manager import (
+    AgenteManager, 
+    DatosExploracion, 
+    InstruccionCosecha, 
+    InstruccionTratamiento,
+    EstadoCelda,
+    MetricasSistema
+)
+
+👤 PARA EL AGENTE FÍSICO:
+─────────────────────────
+1. Crear manager:
+   manager = AgenteManager(grid_filas=10, grid_columnas=10)
+
+2. Registrar tu función que ejecuta instrucciones:
+   def ejecutar_instruccion(instruccion):
+       if isinstance(instruccion, InstruccionCosecha):
+           # Tu código: ir a celda y cosechar
+           # Después de cosechar, notificar:
+           manager.reportar_cosecha_completada(
+               instruccion.celda_objetivo, 
+               instruccion.frutos_a_cosechar
+           )
+       
+       elif isinstance(instruccion, InstruccionTratamiento):
+           # Tu código: ir a celda y aplicar tratamiento
+           pass
+   
+   manager.registrar_agente_fisico(ejecutar_instruccion)
+
+3. Mientras exploras, envía datos:
+   datos = DatosExploracion(
+       x=pos_x, y=pos_y,
+       temperatura=leer_temp(),
+       humedad=leer_humedad(),
+       nivel_plagas=detectar_plagas(),
+       nivel_nutrientes=analizar_nutrientes(),
+       nivel_maduracion=analizar_maduracion(),  # 0-10
+       tamano_fruto=medir_tamano(),             # 0-10
+       color_rgb=(R, G, B),
+       frutos_disponibles=contar_frutos(),
+       agente_id=mi_id
+   )
+   
+   manager.recibir_datos_exploracion(datos)
+
+🖥️ PARA EL AGENTE UI:
+─────────────────────
+1. Registrar tu función de actualización:
+   def actualizar_interfaz(estados, metricas):
+       # estados: List[EstadoCelda]
+       # metricas: MetricasSistema
+       
+       for estado in estados:
+           # Pintar celda según:
+           # - estado.nivel_riesgo (color)
+           # - estado.estado_maduracion
+           # - estado.frutos_disponibles
+           # - estado.listo_para_cosechar
+           pintar_celda(estado.x, estado.y, estado)
+       
+       # Actualizar panel con:
+       # - metricas.frutos_listos_cosecha
+       # - metricas.frutos_cosechados
+       # - metricas.cosechas_ordenadas
+       # - metricas.tratamientos_ordenados
+       actualizar_panel(metricas)
+   
+   manager.registrar_agente_ui(actualizar_interfaz)
+
+🎯 PRIORIZACIÓN AUTOMÁTICA:
+──────────────────────────
+El Manager prioriza automáticamente:
+1. 🍅 COSECHA (Prioridad 5): Frutos sobre maduros (>9.5)
+2. 🍅 COSECHA (Prioridad 4): Frutos óptimos (8.5-9.5)
+3. ⚠️  TRATAMIENTO (Prioridad 5): Plagas críticas
+4. 🍅 COSECHA (Prioridad 3): Frutos maduros (7-8.5)
+5. ⚠️  TRATAMIENTO (Prioridad 4): Problemas altos
+
+⚙️ PERSONALIZAR UMBRALES:
+─────────────────────────
+# Umbrales de cosecha:
+manager.configurar_umbrales_cosecha({
+    'maduracion_minima': 7.0,
+    'maduracion_optima': 8.5,
+    'maduracion_sobre': 9.5,
+    'tamano_minimo': 5.0
+})
+
+# Umbrales de riesgo:
+manager.configurar_umbrales({
+    'temperatura_min': 18.0,
+    'temperatura_max': 28.0,
+    'nivel_plagas_critico': 8.0
+})
+
+📊 CONSULTAR ESTADO:
+────────────────────
+# Obtener estado completo:
+estado = manager.obtener_estado_completo()
+
+# Generar reporte:
+print(manager.generar_reporte())
+
+╔══════════════════════════════════════════════════════════════════════╗
+║  ✅ El Manager se encarga de toda la lógica de decisión              ║
+║  ✅ Los otros componentes solo ejecutan las instrucciones            ║
+╚══════════════════════════════════════════════════════════════════════╝
+    """)
 
 
 if __name__ == "__main__":
+    guia_integracion()
+    print("\n")
     ejemplo_uso()
