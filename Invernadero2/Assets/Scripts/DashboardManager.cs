@@ -20,6 +20,24 @@ public class DashboardManager : MonoBehaviour
     public int maxActiveAlerts = 6; // Limita la cantidad de alertas simultáneas
     public float alertaSpacing = 30f; // Espacio (en píxeles para Canvas) o en unidades Y para world-space
     public float riesgoCritico = 0.7f; // Umbral configurable para considerar una planta en peligro
+    [Header("Simulación de Análisis")]
+    public int totalColumnas = 5; // Configurable, usado para mapear índices
+    public int totalTestCases = 3; // Cuántos casos de prueba simular
+    public TextMeshProUGUI textoCaso; // Muestra caso actual / resultados
+    public bool autoSimulate = false; // Si true, escanea automáticamente cada `scanInterval`
+    public float scanInterval = 0.5f; // Intervalo entre escaneos automáticos
+
+    // Estado de la simulación por caso
+    private bool[] analyzedPlants;
+    private int analyzedCount = 0;
+    private int nextIndexToScan = 0;
+    private int currentTestCase = 1;
+    private float testStartTime = 0f;
+
+    // Resultados por caso
+    private List<float> timesPerTest = new List<float>();
+    private List<int> movementsPerTest = new List<int>();
+    private Coroutine autoScanCoroutine;
 
     // Cola para controlar alertas activas y reaprovechar/limitar
     private Queue<GameObject> alertQueue = new Queue<GameObject>();
@@ -38,46 +56,176 @@ public class DashboardManager : MonoBehaviour
         if (simulacionActiva)
         {
             tiempoSimulado += Time.deltaTime;
-            int porcentajeSuave = (int)(tiempoSimulado * 5) % 100;
-            if (porcentajeSuave >= 100) 
+            // Mostrar porcentaje real basado en plantas analizadas si la simulación está inicializada
+            int porcentajeAnalizado = 0;
+            if (listaDePlantas != null && listaDePlantas.Count > 0 && analyzedPlants != null)
+            {
+                porcentajeAnalizado = Mathf.RoundToInt((analyzedCount * 100f) / listaDePlantas.Count);
+            }
+            else
+            {
+                porcentajeAnalizado = (int)(tiempoSimulado * 5) % 100;
+            }
+
+            if (porcentajeAnalizado >= 100)
             {
                 simulacionActiva = false; // ¡STOP!
                 Debug.Log("¡Misión Cumplida! Tiempo Final: " + tiempoSimulado);
             }
-            ActualizarMetricas(tiempoSimulado, movimientos, porcentajeSuave);
+
+            ActualizarMetricas(tiempoSimulado, movimientos, porcentajeAnalizado);
         }
         
-        // 4. PRUEBA DE TECLA ESPACIO
+        // 4. PRUEBA DE TECLA ESPACIO o simulación de escaneo
+        // Input: Space toggles automatic scanning on/off. 'S' hace un único escaneo manual.
         if (Input.GetKeyDown(KeyCode.Space))
         {
-            // A. ¡IMPORTANTE! Aquí sumamos 1 al contador
-            movimientos++; 
-
-            for(int i = 0; i < listaDePlantas.Count; i++)
+            autoSimulate = !autoSimulate;
+            if (autoSimulate)
             {
-                // Simulamos riesgo aleatorio para cada planta
-                float riesgoAleatorio = Random.Range(0.0f, 1.0f);
-                ActualizarRiesgoPlanta(i, riesgoAleatorio);
-
-                // Gestionamos alertas según el riesgo actual: si es crítico, reportamos/mostramos alerta;
-                // si no lo es, eliminamos cualquier alerta previa para esa planta.
-                if (riesgoAleatorio > riesgoCritico)
-                {
-                    // Convertir el índice de la lista a (fila, columna)
-                    int totalColumnas = 5; // Debe coincidir con ReportarEstadoCultivo
-                    int fila = i / totalColumnas;
-                    int columna = i % totalColumnas;
-                    // Llamamos al reporte con duracion=0 para que la alerta persista hasta la siguiente evaluación
-                    ReportarEstadoCultivo(fila, columna, riesgoAleatorio);
-                }
-                else
-                {
-                    // Si la planta ya tenía una alerta activa, la limpiamos inmediatamente
-                    ClearAlertForPlant(i);
-                }
+                if (autoScanCoroutine == null) autoScanCoroutine = StartCoroutine(AutoScanRoutine());
             }
-            // B. Simulamos que la planta en Fila 1, Columna 2 tiene plaga
+            else
+            {
+                if (autoScanCoroutine != null) { StopCoroutine(autoScanCoroutine); autoScanCoroutine = null; }
+            }
         }
+
+        if (Input.GetKeyDown(KeyCode.S))
+        {
+            // Single manual scan step
+            SimulateScanNextPlant();
+        }
+    }
+
+    void Start()
+    {
+        // Inicializar estructura de análisis por planta
+        if (listaDePlantas != null && listaDePlantas.Count > 0)
+        {
+            analyzedPlants = new bool[listaDePlantas.Count];
+            for (int i = 0; i < analyzedPlants.Length; i++) analyzedPlants[i] = false;
+        }
+        analyzedCount = 0;
+        nextIndexToScan = 0;
+        currentTestCase = 1;
+        testStartTime = Time.time;
+        UpdateCasoText();
+    }
+
+    System.Collections.IEnumerator AutoScanRoutine()
+    {
+        while (autoSimulate)
+        {
+            SimulateScanNextPlant();
+            yield return new WaitForSeconds(scanInterval);
+        }
+        autoScanCoroutine = null;
+    }
+
+    void SimulateScanNextPlant()
+    {
+        if (listaDePlantas == null || listaDePlantas.Count == 0) return;
+
+        // Buscar siguiente planta no analizada
+        int start = nextIndexToScan;
+        int found = -1;
+        for (int offset = 0; offset < listaDePlantas.Count; offset++)
+        {
+            int idx = (start + offset) % listaDePlantas.Count;
+            if (!analyzedPlants[idx])
+            {
+                found = idx;
+                nextIndexToScan = (idx + 1) % listaDePlantas.Count;
+                break;
+            }
+        }
+
+        if (found == -1)
+        {
+            // Todas analizadas ya
+            OnAllPlantsAnalyzed();
+            return;
+        }
+
+        // Simulamos la acción de análisis: incrementamos movimientos y marcamos como analizada
+        movimientos++;
+        analyzedPlants[found] = true;
+        analyzedCount++;
+
+        // Generamos riesgo aleatorio para la planta (puedes reemplazar por lógica real después)
+        float riesgoAleatorio = Random.Range(0.0f, 1.0f);
+        ActualizarRiesgoPlanta(found, riesgoAleatorio);
+
+        // Si es crítico, mostramos alerta; si no, nos aseguramos que no haya alerta
+        if (riesgoAleatorio > riesgoCritico)
+        {
+            int fila = found / totalColumnas;
+            int columna = found % totalColumnas;
+            ReportarEstadoCultivo(fila, columna, riesgoAleatorio);
+        }
+        else
+        {
+            ClearAlertForPlant(found);
+        }
+
+        // Actualizamos métricas UI
+        int porcentajeAnalizado = Mathf.RoundToInt((analyzedCount * 100f) / listaDePlantas.Count);
+        ActualizarMetricas(Time.time - testStartTime, movimientos, porcentajeAnalizado);
+
+        if (analyzedCount >= listaDePlantas.Count)
+        {
+            OnAllPlantsAnalyzed();
+        }
+    }
+
+    void OnAllPlantsAnalyzed()
+    {
+        float timeTaken = Time.time - testStartTime;
+        timesPerTest.Add(timeTaken);
+        movementsPerTest.Add(movimientos);
+
+        Debug.Log($"TestCase {currentTestCase} completed: time={timeTaken:F2}s, moves={movimientos}");
+
+        // Avanzar a siguiente caso o detener
+        if (currentTestCase < totalTestCases)
+        {
+            currentTestCase++;
+            ResetForNextTestCase();
+        }
+        else
+        {
+            // Todos los casos ejecutados
+            Debug.Log("All test cases finished.");
+            // Mostrar resumen
+            for (int i = 0; i < timesPerTest.Count; i++)
+            {
+                Debug.Log($"Case {i+1}: time={timesPerTest[i]:F2}s, moves={movementsPerTest[i]}");
+            }
+            // Detener auto-scan si estaba en marcha
+            autoSimulate = false;
+            if (autoScanCoroutine != null) StopCoroutine(autoScanCoroutine);
+            autoScanCoroutine = null;
+        }
+    }
+
+    void ResetForNextTestCase()
+    {
+        // Limpiamos alertas y estado
+        for (int i = 0; i < analyzedPlants.Length; i++) analyzedPlants[i] = false;
+        analyzedCount = 0;
+        nextIndexToScan = 0;
+        movimientos = 0;
+        testStartTime = Time.time;
+        // Limpiar alertas visuales existentes
+        var keys = new List<int>(activeAlertsByPlant.Keys);
+        foreach (var k in keys) ClearAlertForPlant(k);
+        UpdateCasoText();
+    }
+
+    void UpdateCasoText()
+    {
+        if (textoCaso != null) textoCaso.text = $"Caso: {currentTestCase}/{totalTestCases}";
     }
 
     // 1. ACTUALIZAR MÉTRICAS (Tu Requisito 3)
@@ -236,7 +384,7 @@ public class DashboardManager : MonoBehaviour
             if (nivelRiesgo > 0.7f) // Si el riesgo es mayor al 70%
             {
                 Vector3 pos = listaDePlantas[indiceLista].transform.position;
-                CrearAlertaVisual(indiceLista, pos, "¡ALERTA " + fila + "-" + columna + "!");
+                CrearAlertaVisual(indiceLista, pos, "¡ALERTA!");
             }
         }
         else
