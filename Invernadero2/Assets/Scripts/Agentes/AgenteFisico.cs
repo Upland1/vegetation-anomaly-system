@@ -1,7 +1,7 @@
 using UnityEngine;
 using System.Collections;
-using System.Collections.Generic; // Necesario para las listas
-using System.Linq; // Necesario para ordenar por distancia
+using System.Collections.Generic; 
+using System.Linq; 
 
 public class AgenteFisico : MonoBehaviour
 {
@@ -12,7 +12,7 @@ public class AgenteFisico : MonoBehaviour
 
     [Header("Configuración Análisis")]
     public float tiempoAnalisis = 2.0f;  // Cuánto tarda en analizar
-    public Transform puntoSensor;        // Arrastra el objeto vacío 'SensorPos' aquí
+    public Transform puntoSensor;       
 
     // Variables internas
     private List<PlantaData> listaDeTomates;
@@ -22,10 +22,10 @@ public class AgenteFisico : MonoBehaviour
 
     void Start()
     {
-        // 1. BUSCAR: Encuentra todos los objetos que tengan el script PlantaData
+        // Encuentra todos los objetos que tengan el script PlantaData
         var todosLosTomates = FindObjectsOfType<PlantaData>();
         
-        // 2. ORDENAR: Los ordena por cercanía para crear una ruta lógica
+        // Los ordena por cercanía para crear una ruta lógica
         listaDeTomates = todosLosTomates.OrderBy(t => Vector3.Distance(transform.position, t.transform.position)).ToList();
 
         Debug.Log($"[DRON] Ruta calculada: {listaDeTomates.Count} tomates encontrados.");
@@ -39,7 +39,7 @@ public class AgenteFisico : MonoBehaviour
         // Obtener el objetivo actual de la lista
         PlantaData objetivo = listaDeTomates[indiceActual];
 
-        // Definir el punto de destino (misma posición X/Z del tomate, pero a nuestra altura Y)
+        // Definir el punto de destino (misma posición X/Z del tomate, pero a la altura Y)
         Vector3 destino = new Vector3(objetivo.transform.position.x, alturaVuelo, objetivo.transform.position.z);
 
         // Moverse hacia el destino
@@ -62,7 +62,7 @@ public class AgenteFisico : MonoBehaviour
     {
         estaViajando = false; 
 
-        // --- CAMBIO: Detección inmediata al llegar ---
+        // Detección inmediata al llegar
         if (planta.tienePlaga)
         {
             planta.MarcarComoEnferma();
@@ -73,7 +73,6 @@ public class AgenteFisico : MonoBehaviour
         {
             planta.MarcarComoSana();
         }
-        // ---------------------------------------------
 
         // Comunicar estado normal
         if (AgenteManager.Instance != null)
@@ -83,7 +82,7 @@ public class AgenteFisico : MonoBehaviour
         if (puntoSensor != null)
             Debug.DrawLine(puntoSensor.position, planta.transform.position, Color.red, tiempoAnalisis);
 
-        // Ahora sí, esperar simulando recolección de datos detallados
+        // Esperar simulando recolección de datos detallados
         yield return new WaitForSeconds(tiempoAnalisis);
 
         planta.yaAnalizada = true;
@@ -95,7 +94,7 @@ public class AgenteFisico : MonoBehaviour
         }
         else
         {
-            Debug.Log("[DRON] ✅ Misión Completada.");
+            Debug.Log("[DRON] Misión Completada.");
             tareaCompletada = true;
         }
     }

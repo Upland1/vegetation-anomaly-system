@@ -23,8 +23,8 @@ public class AgenteManager : MonoBehaviour
         {
             string estado = planta.tienePlaga ? "INFECTADA" : "SANA";
             
-            // CORRECCIÓN: Ahora usamos 'nombreComun' para coincidir con PlantaData
-            textoEstado.text = $"📋 MONITOREO EN VIVO\n" +
+            // Usamos 'nombreComun' para coincidir con PlantaData
+            textoEstado.text = $"MONITOREO EN VIVO\n" +
                                $"Target: {planta.nombreComun}\n" + 
                                $"Madurez: {planta.nivelMaduracion:F1}/10\n" +
                                $"Salud: {estado}";
@@ -36,7 +36,7 @@ public class AgenteManager : MonoBehaviour
         alertasCount++;
         if(textoAlertas != null)
         {
-            textoAlertas.text = $"🚨 ¡ALERTA DE PLAGA!\n" +
+            textoAlertas.text = $"¡ALERTA DE PLAGA!\n" +
                                 $"Ubicación: {nombrePlanta}\n" +
                                 $"Contador Plagas: {alertasCount}";
             textoAlertas.color = Color.red; 

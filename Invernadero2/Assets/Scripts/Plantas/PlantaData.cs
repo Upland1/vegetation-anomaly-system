@@ -3,7 +3,7 @@ using UnityEngine;
 public class PlantaData : MonoBehaviour
 {
     [Header("Datos Identificación")]
-    // ¡Esta es la variable que faltaba!
+
     public string nombreComun = ""; 
 
     [Header("Datos Biológicos")]
@@ -14,7 +14,7 @@ public class PlantaData : MonoBehaviour
     [HideInInspector] public bool yaAnalizada = false;
 
     [Header("Configuración Visual")]
-    // Tus colores personalizados (Rojo vivo y Marrón enfermo)
+
     public Color colorSano = new Color32(255, 4, 0, 255);
     public Color colorEnfermo = new Color32(133, 111, 20, 255);
 
@@ -22,7 +22,7 @@ public class PlantaData : MonoBehaviour
 
     void Start()
     {
-        // Generar nombre automático si está vacío (Ej: "Tomate 402")
+        // Generar nombre automático si está vacío
         if (string.IsNullOrEmpty(nombreComun))
         {
             nombreComun = $"Tomate {Random.Range(100, 999)}";

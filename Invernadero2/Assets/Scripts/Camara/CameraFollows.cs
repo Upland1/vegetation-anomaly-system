@@ -2,10 +2,10 @@ using UnityEngine;
 
 public class CameraFollow : MonoBehaviour
 {
-    public Transform target; // Arrastra el Dron aquí
+    public Transform target; 
 
     [Header("Ajustes de Cámara")]
-    public Vector3 offset = new Vector3(0, 10, -8); // Más alto para ver mejor el cultivo
+    public Vector3 offset = new Vector3(0, 10, -8); 
     public float smoothSpeed = 5.0f; // Velocidad de seguimiento
     public float anguloFijo = 50.0f; // Ángulo fijo hacia abajo (Vista aérea)
 
@@ -13,14 +13,14 @@ public class CameraFollow : MonoBehaviour
     {
         if (target == null) return;
 
-        // 1. Calcular posición deseada (Dron + Offset)
+        // Calcular posición deseada
         Vector3 desiredPosition = target.position + offset;
         
-        // 2. Moverse suavemente (Usando Time.deltaTime para que sea fluido)
+        // Moverse suavemente 
         Vector3 smoothedPosition = Vector3.Lerp(transform.position, desiredPosition, smoothSpeed * Time.deltaTime);
         transform.position = smoothedPosition;
 
-        // 3. Rotación Fija (Mejor que LookAt para que no se maree)
+        // Rotación Fija
         transform.rotation = Quaternion.Euler(anguloFijo, 0, 0);
     }
 }
