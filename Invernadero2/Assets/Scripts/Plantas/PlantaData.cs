@@ -1,36 +1,38 @@
 using UnityEngine;
 
-using UnityEngine;
-
 public class PlantaData : MonoBehaviour
 {
+    [Header("Datos Identificación")]
+    // ¡Esta es la variable que faltaba!
+    public string nombreComun = ""; 
+
     [Header("Datos Biológicos")]
-    public bool tienePlaga = false; // ¡Marca esto para probar!
+    public bool tienePlaga = false; 
     [Range(0, 100)] public float humedad = 65.0f;
     [Range(0, 10)] public float nivelMaduracion = 5.0f; 
     
     [HideInInspector] public bool yaAnalizada = false;
 
     [Header("Configuración Visual")]
+    // Tus colores personalizados (Rojo vivo y Marrón enfermo)
     public Color colorSano = new Color32(255, 4, 0, 255);
     public Color colorEnfermo = new Color32(133, 111, 20, 255);
 
-    // Variable privada interna (ya no necesitas arrastrar nada)
     private Renderer miRenderer;
 
     void Start()
     {
-        // 1. BUSCAR AUTOMÁTICAMENTE: El script busca el Renderer en ESTE mismo objeto
-        miRenderer = GetComponent<Renderer>();
+        // Generar nombre automático si está vacío (Ej: "Tomate 402")
+        if (string.IsNullOrEmpty(nombreComun))
+        {
+            nombreComun = $"Tomate {Random.Range(100, 999)}";
+        }
 
-        if (miRenderer == null)
-        {
-            Debug.LogError($"[ERROR] El objeto '{name}' tiene el script PlantaData pero NO tiene un Mesh Renderer para pintar.");
-        }
-        else
-        {
-            ActualizarColor();
-        }
+        // Buscar el pintor automáticamente
+        miRenderer = GetComponent<Renderer>();
+        
+        // Aplicar color inicial
+        if (miRenderer != null) ActualizarColor();
     }
 
     public void MarcarComoEnferma()
@@ -49,7 +51,6 @@ public class PlantaData : MonoBehaviour
     {
         if (miRenderer != null)
         {
-            // Pinta directamente este objeto
             miRenderer.material.color = tienePlaga ? colorEnfermo : colorSano;
         }
     }

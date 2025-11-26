@@ -60,45 +60,42 @@ public class AgenteFisico : MonoBehaviour
 
     IEnumerator AnalizarRutina(PlantaData planta)
     {
-        estaViajando = false; // Frenar
+        estaViajando = false; 
 
-        // Dibujar láser rojo (solo se ve en la ventana Scene)
-        if (puntoSensor != null)
-            Debug.DrawLine(puntoSensor.position, planta.transform.position, Color.red, tiempoAnalisis);
-
-        // Comunicar a la UI (Manager)
-        if (AgenteManager.Instance != null)
-        {
-            AgenteManager.Instance.MostrarAnalisisUI(planta);
-        }
-
-        // Esperar tiempo de análisis
-        yield return new WaitForSeconds(tiempoAnalisis);
-
-        // Verificar Plaga
+        // --- CAMBIO: Detección inmediata al llegar ---
         if (planta.tienePlaga)
         {
             planta.MarcarComoEnferma();
             if (AgenteManager.Instance != null)
-                AgenteManager.Instance.RegistrarAlerta(planta.name);
+                AgenteManager.Instance.RegistrarAlerta(planta.nombreComun); // ¡Alerta YA!
         }
         else
         {
             planta.MarcarComoSana();
         }
+        // ---------------------------------------------
+
+        // Comunicar estado normal
+        if (AgenteManager.Instance != null)
+            AgenteManager.Instance.MostrarAnalisisUI(planta);
+
+        // Dibujar láser
+        if (puntoSensor != null)
+            Debug.DrawLine(puntoSensor.position, planta.transform.position, Color.red, tiempoAnalisis);
+
+        // Ahora sí, esperar simulando recolección de datos detallados
+        yield return new WaitForSeconds(tiempoAnalisis);
 
         planta.yaAnalizada = true;
-
-        // Pasar al siguiente
         indiceActual++;
 
         if (indiceActual < listaDeTomates.Count)
         {
-            estaViajando = true; // Arrancar motores hacia el siguiente
+            estaViajando = true;
         }
         else
         {
-            Debug.Log("[DRON] ✅ Misión Completada. Todos los tomates revisados.");
+            Debug.Log("[DRON] ✅ Misión Completada.");
             tareaCompletada = true;
         }
     }

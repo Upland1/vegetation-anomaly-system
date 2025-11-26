@@ -1,44 +1,45 @@
 using UnityEngine;
-using TMPro; // Necesario para los textos de la UI
+using TMPro; 
 
 public class AgenteManager : MonoBehaviour
 {
-    // Singleton: Permite que el Dron encuentre al Manager fácilmente
     public static AgenteManager Instance;
 
     [Header("Referencias UI")]
-    public TextMeshProUGUI textoEstado;   // Arrastra aquí el texto que dice "Analizando..."
-    public TextMeshProUGUI textoAlertas;  // Arrastra aquí el texto que dice "ALERTA"
-
-    // Contadores internos
-    private int contadorAlertas = 0;
+    public TextMeshProUGUI textoEstado;   
+    public TextMeshProUGUI textoAlertas;  
+    
+    private int alertasCount = 0;
 
     void Awake()
     {
-        // Configuración básica del Singleton
         if (Instance == null) Instance = this;
         else Destroy(gameObject);
     }
 
-    // Función llamada por el Dron para actualizar el estado en pantalla
     public void MostrarAnalisisUI(PlantaData planta)
     {
-        if (textoEstado != null)
+        if(textoEstado != null)
         {
-            string estadoSalud = planta.tienePlaga ? "<color=red>INFECTADA</color>" : "<color=green>SANA</color>";
-            textoEstado.text = $"DRON ESTADO:\nObjetivo: {planta.name}\nMadurez: {planta.nivelMaduracion}/10\nDiagnóstico: {estadoSalud}";
+            string estado = planta.tienePlaga ? "INFECTADA" : "SANA";
+            
+            // CORRECCIÓN: Ahora usamos 'nombreComun' para coincidir con PlantaData
+            textoEstado.text = $"📋 MONITOREO EN VIVO\n" +
+                               $"Target: {planta.nombreComun}\n" + 
+                               $"Madurez: {planta.nivelMaduracion:F1}/10\n" +
+                               $"Salud: {estado}";
         }
     }
 
-    // Función llamada por el Dron cuando detecta una plaga
     public void RegistrarAlerta(string nombrePlanta)
     {
-        contadorAlertas++;
-        if (textoAlertas != null)
+        alertasCount++;
+        if(textoAlertas != null)
         {
-            textoAlertas.text = $"¡ALERTA CRÍTICA!\nZona Afectada: {nombrePlanta}\nTotal Detectadas: {contadorAlertas}";
-            textoAlertas.color = Color.red; // Pone el texto en rojo intenso
+            textoAlertas.text = $"🚨 ¡ALERTA DE PLAGA!\n" +
+                                $"Ubicación: {nombrePlanta}\n" +
+                                $"Contador Plagas: {alertasCount}";
+            textoAlertas.color = Color.red; 
         }
-        Debug.LogWarning($"[MANAGER] Se ha registrado una nueva plaga en {nombrePlanta}");
     }
 }
