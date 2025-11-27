@@ -1,13 +1,15 @@
+# -*- coding: utf-8 -*-
 """
 SISTEMA MULTI-AGENTE - PUNTO DE ENTRADA PRINCIPAL
 ==================================================
 
 Este script coordina todo el sistema:
 1. Inicializa el Agente Manager
-2. Crea los Agentes Físicos
-3. Inicia el Agente UI con Pygame
-4. Ejecuta la simulación completa
-5. Muestra resumen final
+2. Crea los Agentes Fisicos
+3. INTEGRA AL CAPATAZ como supervisor
+4. Inicia el Agente UI con Pygame
+5. Ejecuta la simulacion completa
+6. Muestra resumen final
 
 INSTRUCCIONES DE USO:
 --------------------
@@ -18,37 +20,45 @@ INSTRUCCIONES DE USO:
    - main.py (este archivo)
    - manager.py
    - fisico.py
+   - capataz.py  ← NUEVO
    - ui.py
 
 3. Ejecuta:
    python main.py
 
-4. Para personalizar la simulación, edita las constantes al inicio del archivo
+4. Para personalizar la simulacion, edita las constantes al inicio del archivo
 """
 
 import time
 import sys
+import os
 from threading import Thread
 
-# Importar los tres agentes
+# Configurar encoding UTF-8 para salida de consola
+if sys.stdout.encoding != 'utf-8':
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+# Importar los agentes
 from manager import AgenteManager
 from fisico import AgenteFisico
 from ui import AgenteUI
+from capataz import AgenteCapataz
 
 
-# CONFIGURACIÓN DE LA SIMULACIÓN
+# CONFIGURACION DE LA SIMULACION
 
 class ConfiguracionSimulacion:
-    """Parámetros configurables de la simulación"""
+    """Parametros configurables de la simulacion"""
     
     # Dimensiones del cultivo
     GRID_FILAS = 10
     GRID_COLUMNAS = 10
     
-    # Número de agentes físicos trabajando en paralelo
+    # Número de agentes fisicos trabajando en paralelo
     NUM_AGENTES = 5
     
-    # Velocidad de la simulación (factor de aceleración)
+    # Velocidad de la simulacion (factor de aceleracion)
     # 1.0 = tiempo real, 0.5 = mitad de velocidad, 2.0 = doble velocidad
     VELOCIDAD_SIMULACION = 0.5
     
@@ -62,59 +72,65 @@ class SistemaMultiAgente:
     """
     Orquestador del sistema completo
     
-    Coordina la interacción entre:
+    Coordina la interaccion entre:
     - Agente Manager (cerebro del sistema)
-    - Agentes Físicos (ejecutores)
-    - Agente UI (visualización)
+    - Agentes Fisicos (ejecutores)
+    - Agente Capataz (supervisor)
+    - Agente UI (visualizacion)
     """
     
     def __init__(self, config: ConfiguracionSimulacion):
         self.config = config
         
-        # Los tres agentes principales
+        # Los agentes principales
         self.manager = None
         self.ui = None
         
         # Control
         self.sistema_activo = False
         
-        print("\n" + "="*80)
-        print("🚀 SISTEMA MULTI-AGENTE DE MONITOREO DE CULTIVO".center(80))
-        print("="*80 + "\n")
+        print("\\n" + "="*80)
+        print("[MENSAJE] SISTEMA MULTI-AGENTE DE MONITOREO DE CULTIVO".center(80))
+        print("="*80 + "\\n")
     
     def inicializar(self):
         """Inicializa todos los componentes del sistema"""
-        print("📋 Fase 1: Inicializando componentes...\n")
+        print("[INFO] Fase 1: Inicializando componentes...\n")
         
         # 1. CREAR AGENTE MANAGER
-        print("🧠 Creando Agente Manager...")
+        print("[MANAGER] Creando Agente Manager...")
         self.manager = AgenteManager(
             grid_filas=self.config.GRID_FILAS,
             grid_columnas=self.config.GRID_COLUMNAS,
             num_agentes=self.config.NUM_AGENTES
         )
-        print("   ✅ Manager creado\n")
+        print("   [OK] Manager creado\n")
         
         # 2. CREAR AGENTE UI
-        print("🖥️  Creando Agente UI...")
+        print("[UI] Creando Agente UI...")
         self.ui = AgenteUI(
             grid_filas=self.config.GRID_FILAS,
             grid_columnas=self.config.GRID_COLUMNAS
         )
-        print("   ✅ UI creado\n")
+        
+        # NUEVO: Registrar posicion del capataz en UI
+        self.ui.posicion_capataz = self.manager.capataz.posicion
+        
+        print("   [OK] UI creado")
+        print(f"   [CAPATAZ] Capataz registrado en posicion {self.ui.posicion_capataz}\n")
         
         # 3. CONECTAR MANAGER CON UI
-        print("🔗 Conectando Manager <-> UI...")
+        print("[CONEXION] Conectando Manager <-> UI...")
         self.manager.registrar_agente_ui(self.ui.actualizar)
-        print("   ✅ Conexión establecida\n")
+        print("   [OK] Conexion establecida\n")
         
-        # 4. CREAR AGENTES FÍSICOS
-        print("🤖 Creando Agentes Físicos...")
+        # 4. CREAR AGENTES FISICOS (Ya incluye conexion con capataz)
+        print("[AGENTES] Creando Agentes Fisicos...")
         self.manager.crear_agentes_fisicos()
         
         # Conectar agentes con UI para tracking de posiciones
         for agente in self.manager.agentes_fisicos:
-            # Sobrescribir método _mover_a para notificar a UI
+            # Sobrescribir metodo _mover_a para notificar a UI
             original_mover = agente._mover_a
             
             def mover_con_ui(celda, agente_id=agente.agente_id):
@@ -123,72 +139,100 @@ class SistemaMultiAgente:
             
             agente._mover_a = mover_con_ui
         
-        print("   ✅ Todos los agentes creados\n")
+        # NUEVO: Conectar ordenes del capataz con agentes
+        for agente in self.manager.agentes_fisicos:
+            # Crear closure para capturar agente especifico
+            def crear_callback_orden(agente_obj):
+                def callback_orden(orden):
+                    if orden.agente_destino == agente_obj.agente_id:
+                        agente_obj.recibir_orden_capataz(orden.tipo_orden, orden.razon)
+                return callback_orden
+            
+            # Registrar callback en el capataz
+            # (El capataz llamara esto cuando emita ordenes)
+            original_emitir = self.manager.capataz._emitir_orden
+            
+            def emitir_con_callback(agente_id, tipo_orden, razon, prioridad=3, capataz=self.manager.capataz):
+                orden = original_emitir(agente_id, tipo_orden, razon, prioridad)
+                # Enviar orden al agente correspondiente
+                agente_obj = next((a for a in self.manager.agentes_fisicos if a.agente_id == agente_id), None)
+                if agente_obj:
+                    agente_obj.recibir_orden_capataz(orden.tipo_orden, orden.razon)
+                return orden
+            
+            self.manager.capataz._emitir_orden = emitir_con_callback
+        
+        print("   [OK] Todos los agentes creados")
+        print("   [CONEXION] Agentes conectados con el Capataz\n")
         
         # 5. DISTRIBUIR TRABAJO
-        print("📦 Distribuyendo trabajo entre agentes...")
+        print("[TRABAJO] Distribuyendo trabajo entre agentes...")
         self.manager.distribuir_trabajo()
-        print("   ✅ Trabajo distribuido\n")
+        print("   [OK] Trabajo distribuido\n")
         
         print("="*80)
-        print("✅ SISTEMA INICIALIZADO CORRECTAMENTE".center(80))
+        print("[OK] SISTEMA INICIALIZADO CORRECTAMENTE".center(80))
         print("="*80 + "\n")
         
         self.sistema_activo = True
     
     def ejecutar_simulacion(self):
-        """Ejecuta la simulación completa"""
+        """Ejecuta la simulacion completa"""
         if not self.sistema_activo:
-            print("⚠️  Error: Sistema no inicializado. Llama inicializar() primero.")
+            print("[ADVERTENCIA] Error: Sistema no inicializado. Llama inicializar() primero.")
             return
         
         print("\n" + "="*80)
-        print("🎬 INICIANDO SIMULACIÓN".center(80))
+        print("[SIMULACION] INICIANDO SIMULACION".center(80))
         print("="*80 + "\n")
         
         # Iniciar Pygame en el thread principal
-        print("🖥️  Iniciando visualización Pygame...")
+        print("[UI] Iniciando visualizacion Pygame...")
         self.ui.inicializar_pygame()
-        print("   ✅ Pygame iniciado\n")
+        print("   [OK] Pygame iniciado\n")
         
         # Mensaje de inicio
-        print("🌾 Los agentes comenzarán a explorar el cultivo...")
-        print("📊 La visualización se actualizará en tiempo real")
-        print("💡 Presiona ESC en la ventana de Pygame para salir\n")
+        print("[CULTIVO] Los agentes comenzaran a explorar el cultivo...")
+        print("[CAPATAZ] El Capataz supervisara desde la esquina superior izquierda")
+        print("[DATOS] La visualizacion se actualizara en tiempo real")
+        print("[TIP] Presiona ESC en la ventana de Pygame para salir\n")
         print("-"*80 + "\n")
         
-        # Ejecutar exploración multi-agente en threads separados
+        # Ejecutar exploracion multi-agente en threads separados
         try:
-            # Iniciar exploración en threads
+            # Iniciar exploracion en threads
             exploracion_thread = Thread(target=self.manager.iniciar_exploracion_multi_agente, daemon=True)
             exploracion_thread.start()
             
             # Ejecutar loop de Pygame en el thread principal
             self.ui.ejecutar_loop_pygame()
             
-            # Esperar a que termine la exploración
+            # Esperar a que termine la exploracion
             exploracion_thread.join(timeout=1)
             
         except KeyboardInterrupt:
-            print("\n\n⚠️  Simulación interrumpida por el usuario")
+            print("\n\n[ADVERTENCIA] Simulacion interrumpida por el usuario")
             self.detener()
             return
         
         # Esperar un momento antes de mostrar resumen
         print("\n" + "="*80)
-        print("⏸️  Esperando 3 segundos para visualizar resultados...".center(80))
+        print("[LINEA] Esperando 3 segundos para visualizar resultados...".center(80))
         print("="*80 + "\n")
         time.sleep(3)
     
     def mostrar_resumen(self):
         """Muestra el resumen final del sistema"""
         print("\n" + "="*80)
-        print("📋 GENERANDO REPORTE FINAL".center(80))
+        print("[INFO] GENERANDO REPORTE FINAL".center(80))
         print("="*80 + "\n")
         
-        # Reporte del Manager
+        # Reporte del Manager (incluye reporte del Capataz)
         reporte_manager = self.manager.generar_reporte()
         print(reporte_manager)
+        
+        # Mostrar estado final del Capataz
+        self.manager.capataz.mostrar_estado_supervision()
         
         # Resumen visual de UI
         if self.ui:
@@ -196,64 +240,100 @@ class SistemaMultiAgente:
     
     def detener(self):
         """Detiene el sistema de forma ordenada"""
-        print("\n🛑 Deteniendo sistema...")
+        print("\n[DETENER] Deteniendo sistema...")
         
-        # Detener agentes físicos
+        # Detener agentes fisicos
         if self.manager:
             for agente in self.manager.agentes_fisicos:
                 agente.detener()
+        
+        # Detener capataz
+        if self.manager and self.manager.capataz:
+            self.manager.capataz.detener()
         
         # Detener UI
         if self.ui:
             self.ui.detener()
         
-        print("✅ Sistema detenido\n")
+        print("[OK] Sistema detenido\n")
     
     def ejecutar_completo(self):
         """Ejecuta el ciclo completo: inicializar -> simular -> reportar"""
         try:
-            # Fase 1: Inicialización
+            # Fase 1: Inicializacion
             self.inicializar()
             
-            # Pequeña pausa antes de comenzar
-            print("⏳ Iniciando en 3 segundos...")
+            # Pequena pausa antes de comenzar
+            print("[ESPERA] Iniciando en 3 segundos...")
             for i in range(3, 0, -1):
                 print(f"   {i}...")
                 time.sleep(1)
             print()
             
-            # Fase 2: Simulación
+            # Fase 2: Simulacion
             self.ejecutar_simulacion()
             
             # Fase 3: Resumen
             self.mostrar_resumen()
             
         except Exception as e:
-            print(f"\n❌ Error en la simulación: {e}")
+            print(f"\n[ERROR] Error en la simulacion: {e}")
             import traceback
             traceback.print_exc()
         
         finally:
             self.detener()
+    
+    # ========================================================================
+    # NUEVAS FUNCIONALIDADES: CONTROL MANUAL DEL CAPATAZ
+    # ========================================================================
+    
+    def emitir_orden_manual_capataz(self, agente_id: int, tipo_orden: str, razon: str = "Orden manual"):
+        """
+        Permite emitir ordenes manuales del capataz durante la simulacion
+        
+        Args:
+            agente_id: ID del agente (1-5)
+            tipo_orden: 'PARATE', 'CONTINUA', 'ABANDONA'
+            razon: Razon de la orden
+        """
+        if not self.manager or not self.manager.capataz:
+            print("[ADVERTENCIA] Sistema no inicializado")
+            return
+        
+        if tipo_orden == 'PARATE':
+            self.manager.capataz.ordenar_parate(agente_id, razon)
+        elif tipo_orden == 'CONTINUA':
+            self.manager.capataz.ordenar_continua(agente_id, razon)
+        elif tipo_orden == 'ABANDONA':
+            self.manager.capataz.ordenar_abandona(agente_id, razon)
+        else:
+            print(f"[ADVERTENCIA] Orden desconocida: {tipo_orden}")
+    
+    def fin_turno_capataz(self):
+        """Ordena fin de turno - todos los agentes abandonan"""
+        if self.manager and self.manager.capataz:
+            self.manager.capataz.ordenar_fin_turno()
 
 
 # PUNTO DE ENTRADA
 
 def main():
-    """Función principal"""
+    """Funcion principal"""
     # Banner inicial
     print("\n")
-    print("╔" + "="*78 + "╗")
-    print("║" + " "*78 + "║")
-    print("║" + "   SISTEMA MULTI-AGENTE DE MONITOREO Y GESTIÓN DE CULTIVOS".center(78) + "║")
-    print("║" + " "*78 + "║")
-    print("║" + f"   Grid: {ConfiguracionSimulacion.GRID_FILAS}x{ConfiguracionSimulacion.GRID_COLUMNAS}".ljust(78) + "║")
-    print("║" + f"   Agentes: {ConfiguracionSimulacion.NUM_AGENTES}".ljust(78) + "║")
-    print("║" + " "*78 + "║")
-    print("╚" + "="*78 + "╝")
+    print("+" + "="*78 + "+")
+    print("|" + " "*78 + "|")
+    print("|" + "   SISTEMA MULTI-AGENTE DE MONITOREO Y GESTION DE CULTIVOS".center(78) + "|")
+    print("|" + " "*78 + "|")
+    print("|" + f"   Grid: {ConfiguracionSimulacion.GRID_FILAS}x{ConfiguracionSimulacion.GRID_COLUMNAS}".ljust(78) + "|")
+    print("|" + f"   Agentes: {ConfiguracionSimulacion.NUM_AGENTES}".ljust(78) + "|")
+    print("|" + f"   [CAPATAZ] Supervisando".ljust(78) + "|")
+    print("|" + " "*78 + "|")
+    print("+" + "="*78 + "+")
     print()
     
-    # Crear configuración
+    # Crear configuracion
     config = ConfiguracionSimulacion()
     
     # Crear y ejecutar sistema
@@ -262,19 +342,19 @@ def main():
     
     # Mensaje de despedida
     print("\n" + "="*80)
-    print("👋 GRACIAS POR USAR EL SISTEMA".center(80))
+    print("[ADIOS] GRACIAS POR USAR EL SISTEMA".center(80))
     print("="*80 + "\n")
 
 
-# MODO DE PRUEBA RÁPIDA
+# MODO DE PRUEBA RAPIDA
 
 def modo_prueba_rapida():
     """
-    Modo de prueba con configuración reducida para debugging
+    Modo de prueba con configuracion reducida para debugging
     """
-    print("\n🧪 MODO DE PRUEBA RÁPIDA\n")
+    print("\n[PRUEBA] MODO DE PRUEBA RAPIDA\n")
     
-    # Configuración reducida
+    # Configuracion reducida
     config = ConfiguracionSimulacion()
     config.GRID_FILAS = 5
     config.GRID_COLUMNAS = 5
@@ -288,8 +368,8 @@ def modo_prueba_rapida():
 # EJEMPLOS DE USO AVANZADO
 
 def ejemplo_cultivo_pequeno():
-    """Ejemplo: Cultivo pequeño con 2 agentes"""
-    print("\n🌱 EJEMPLO: Cultivo Pequeño (5x5, 2 agentes)\n")
+    """Ejemplo: Cultivo pequeno con 2 agentes"""
+    print("\n[PEQUENO] EJEMPLO: Cultivo Pequeno (5x5, 2 agentes)\n")
     
     config = ConfiguracionSimulacion()
     config.GRID_FILAS = 5
@@ -302,7 +382,7 @@ def ejemplo_cultivo_pequeno():
 
 def ejemplo_cultivo_grande():
     """Ejemplo: Cultivo grande con muchos agentes"""
-    print("\n🌳 EJEMPLO: Cultivo Grande (15x15, 8 agentes)\n")
+    print("\n[GRANDE] EJEMPLO: Cultivo Grande (15x15, 8 agentes)\n")
     
     config = ConfiguracionSimulacion()
     config.GRID_FILAS = 15
@@ -313,44 +393,62 @@ def ejemplo_cultivo_grande():
     sistema.ejecutar_completo()
 
 
-def ejemplo_monitoreo_solo():
-    """Ejemplo: Solo monitoreo sin cosecha"""
-    print("\n👁️  EJEMPLO: Modo Monitoreo (sin cosecha)\n")
+def ejemplo_con_ordenes_capataz():
+    """Ejemplo: Demostracion de ordenes manuales del capataz"""
+    print("\n[CAPATAZ] EJEMPLO: Ordenes Manuales del Capataz\n")
     
     config = ConfiguracionSimulacion()
+    config.GRID_FILAS = 8
+    config.GRID_COLUMNAS = 8
+    config.NUM_AGENTES = 3
+    
     sistema = SistemaMultiAgente(config)
     sistema.inicializar()
     
-    # Deshabilitar cosecha
-    for agente in sistema.manager.agentes_fisicos:
-        agente.config.velocidad_cosecha = 0.0
+    # Iniciar exploracion
+    exploracion_thread = Thread(target=sistema.manager.iniciar_exploracion_multi_agente, daemon=True)
+    exploracion_thread.start()
     
-    sistema.ejecutar_simulacion()
+    # Esperar un poco
+    time.sleep(5)
+    
+    # Emitir ordenes manuales
+    print("\n[CAPATAZ] CAPATAZ EMITIENDO ORDENES MANUALES...\n")
+    sistema.emitir_orden_manual_capataz(1, 'PARATE', 'Inspeccion de calidad')
+    time.sleep(2)
+    sistema.emitir_orden_manual_capataz(1, 'CONTINUA', 'Inspeccion completada')
+    time.sleep(3)
+    sistema.emitir_orden_manual_capataz(2, 'ABANDONA', 'Problema mecanico')
+    
+    # Esperar a que termine
+    exploracion_thread.join()
+    
+    # Mostrar resumen
     sistema.mostrar_resumen()
     sistema.detener()
 
 
-# EJECUCIÓN
+# EJECUCION
 
 if __name__ == "__main__":
     # Verificar dependencias
     try:
         import pygame
     except ImportError:
-        print("\n❌ ERROR: Pygame no está instalado")
-        print("📦 Instálalo con: pip install pygame\n")
+        print("\n[ERROR] ERROR: Pygame no esta instalado")
+        print("[TRABAJO] Instalalo con: pip install pygame\n")
         sys.exit(1)
     
     # Verificar archivos necesarios
     import os
-    archivos_requeridos = ['manager.py', 'fisico.py', 'ui.py']
+    archivos_requeridos = ['manager.py', 'fisico.py', 'capataz.py', 'ui.py']
     archivos_faltantes = [f for f in archivos_requeridos if not os.path.exists(f)]
     
     if archivos_faltantes:
-        print("\n❌ ERROR: Faltan archivos necesarios:")
+        print("\n[ERROR] ERROR: Faltan archivos necesarios:")
         for archivo in archivos_faltantes:
             print(f"   - {archivo}")
-        print("\n📋 Asegúrate de tener todos los archivos en la misma carpeta\n")
+        print("\n[INFO] Asegúrate de tener todos los archivos en la misma carpeta\n")
         sys.exit(1)
     
     # EJECUTAR MODO PRINCIPAL
@@ -360,4 +458,4 @@ if __name__ == "__main__":
     # modo_prueba_rapida()
     # ejemplo_cultivo_pequeno()
     # ejemplo_cultivo_grande()
-    # ejemplo_monitoreo_solo()
+    # ejemplo_con_ordenes_capataz()

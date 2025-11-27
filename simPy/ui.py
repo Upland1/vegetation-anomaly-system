@@ -1,13 +1,15 @@
+# -*- coding: utf-8 -*-
 """
-AGENTE UI - VISUALIZACIÓN PYGAME + RESUMEN TERMINAL
+AGENTE UI - VISUALIZACION PYGAME + RESUMEN TERMINAL
 ====================================================
 
 Responsabilidades:
-1. Visualizar simulación en tiempo real con Pygame
+1. Visualizar simulacion en tiempo real con Pygame
 2. Mostrar grid del cultivo con colores
-3. Mostrar agentes moviéndose
-4. Mostrar métricas en pantalla
-5. Generar resumen final en terminal
+3. Mostrar agentes moviendose
+4. MOSTRAR AL CAPATAZ como figura fija
+5. Mostrar metricas en pantalla
+6. Generar resumen final en terminal
 """
 
 import pygame
@@ -22,10 +24,10 @@ import time
 from manager import EstadoCelda, MetricasSistema, NivelRiesgo, EstadoMaduracion
 
 
-# CONFIGURACIÓN DE PYGAME
+# CONFIGURACION DE PYGAME
 
 class ConfigPygame:
-    """Configuración visual de Pygame"""
+    """Configuracion visual de Pygame"""
     # Dimensiones
     CELL_SIZE = 60
     INFO_PANEL_WIDTH = 400
@@ -46,7 +48,7 @@ class ConfigPygame:
     COLOR_CRITICO = (183, 28, 28)
     COLOR_COSECHA = (156, 39, 176)
     
-    # Colores de agentes (uno para cada agente)
+    # Colores de agentes
     COLORES_AGENTES = [
         (33, 150, 243),   # Azul
         (76, 175, 80),    # Verde
@@ -55,13 +57,17 @@ class ConfigPygame:
         (0, 188, 212),    # Cyan
     ]
     
+    # Color del capataz
+    COLOR_CAPATAZ = (139, 69, 19)  # Marron
+    COLOR_CAPATAZ_BORDE = (255, 215, 0)  # Dorado
+    
     # Fuentes
     FONT_SIZE_TITLE = 28
     FONT_SIZE_SUBTITLE = 20
     FONT_SIZE_NORMAL = 16
     FONT_SIZE_SMALL = 14
     
-    # Animación
+    # Animacion
     FPS = 30
 
 
@@ -86,18 +92,19 @@ class RegistroActividad:
         self.eventos.append(evento)
 
 
-# AGENTE UI CON PYGAME 
+# AGENTE UI CON PYGAME Y CAPATAZ
 
 class AgenteUI:
     """
-    Agente UI: Visualización con Pygame + Resumen en Terminal
+    Agente UI: Visualizacion con Pygame + Resumen en Terminal
     COMPATIBLE CON macOS - Ejecuta Pygame en el thread principal
     
-    Características:
-    - Visualización en tiempo real del grid
-    - Agentes moviéndose por el cultivo
-    - Código de colores para riesgos
-    - Panel de métricas en vivo
+    Caracteristicas:
+    - Visualizacion en tiempo real del grid
+    - Agentes moviendose por el cultivo
+    - CAPATAZ visible como figura fija supervisando
+    - Codigo de colores para riesgos
+    - Panel de metricas en vivo
     - Resumen final en terminal
     """
     
@@ -111,6 +118,9 @@ class AgenteUI:
         self.metricas: MetricasSistema = None
         self.posiciones_agentes: Dict[int, tuple] = {}
         
+        # NUEVO: Posicion del capataz
+        self.posicion_capataz = (0, 0)
+        
         # Registro de actividad
         self.registro = RegistroActividad(max_eventos=1000)
         
@@ -122,9 +132,11 @@ class AgenteUI:
         self.screen = None
         self.clock = None
         
-        print(f"[UI] ✅ Agente UI inicializado - Grid: {grid_filas}x{grid_columnas}")
+        print(f"[UI] [OK] Agente UI inicializado - Grid: {grid_filas}x{grid_columnas}")
     
-    # INICIALIZACIÓN DE PYGAME (THREAD PRINCIPAL)
+    # ========================================================================
+    # INICIALIZACION DE PYGAME (THREAD PRINCIPAL)
+    # ========================================================================
     
     def inicializar_pygame(self):
         """Inicializa Pygame en el thread principal (macOS compatible)"""
@@ -182,9 +194,7 @@ class AgenteUI:
             self.clock.tick(ConfigPygame.FPS)
     
     def actualizar_frame(self):
-        """
-        Actualiza un solo frame (útil para control manual del loop)
-        """
+        """Actualiza un solo frame (útil para control manual del loop)"""
         if not self.pygame_iniciado:
             return
         
@@ -203,10 +213,12 @@ class AgenteUI:
         pygame.display.flip()
         self.clock.tick(ConfigPygame.FPS)
     
+    # ========================================================================
     # RENDERIZADO PYGAME
+    # ========================================================================
     
     def _renderizar_pygame(self):
-        """Renderiza toda la visualización en Pygame"""
+        """Renderiza toda la visualizacion en Pygame"""
         if not self.screen:
             return
         
@@ -219,10 +231,13 @@ class AgenteUI:
         # Grid del cultivo
         self._dibujar_grid()
         
+        # CAPATAZ (dibujarlo antes de los agentes para que este al fondo)
+        self._dibujar_capataz()
+        
         # Agentes
         self._dibujar_agentes()
         
-        # Panel de información
+        # Panel de informacion
         self._dibujar_panel_info()
         
         # Footer
@@ -232,7 +247,7 @@ class AgenteUI:
         """Dibuja el encabezado"""
         y_offset = 10
         
-        # Título
+        # Titulo
         titulo = self.font_title.render("SISTEMA MULTI-AGENTE - MONITOREO DE CULTIVO", True, ConfigPygame.COLOR_TEXT)
         titulo_rect = titulo.get_rect(center=(self.window_width // 2, y_offset + 20))
         self.screen.blit(titulo, titulo_rect)
@@ -243,13 +258,13 @@ class AgenteUI:
             segs = int(self.metricas.tiempo_transcurrido % 60)
             
             info = self.font_normal.render(
-                f"Tiempo: {mins:02d}:{segs:02d}  |  Progreso: {self.metricas.porcentaje_analizado:.1f}%",
+                f"Tiempo: {mins:02d}:{segs:02d}  |  Progreso: {self.metricas.porcentaje_analizado:.1f}%  |  [CAPATAZ] Capataz supervisando",
                 True, ConfigPygame.COLOR_TEXT_DIM
             )
             info_rect = info.get_rect(center=(self.window_width // 2, y_offset + 50))
             self.screen.blit(info, info_rect)
         
-        # Línea separadora
+        # Linea separadora
         pygame.draw.line(
             self.screen,
             ConfigPygame.COLOR_GRID,
@@ -317,6 +332,43 @@ class AgenteUI:
         
         return ConfigPygame.COLOR_BAJO_RIESGO
     
+    def _dibujar_capataz(self):
+        """
+        NUEVO: Dibuja al capataz como una figura fija supervisando el huerto
+        """
+        x_offset = 20
+        y_offset = ConfigPygame.HEADER_HEIGHT + 20
+        
+        # Posicion del capataz (esquina superior izquierda, dentro del grid)
+        capataz_x = x_offset + 30
+        capataz_y = y_offset + 30
+        
+        # Dibujar sombrero del capataz (triangulo)
+        puntos_sombrero = [
+            (capataz_x, capataz_y + 25),
+            (capataz_x + 15, capataz_y),
+            (capataz_x + 30, capataz_y + 25)
+        ]
+        pygame.draw.polygon(self.screen, ConfigPygame.COLOR_CAPATAZ, puntos_sombrero)
+        pygame.draw.polygon(self.screen, ConfigPygame.COLOR_CAPATAZ_BORDE, puntos_sombrero, 2)
+        
+        # Dibujar cabeza del capataz (circulo)
+        pygame.draw.circle(self.screen, (255, 200, 150), (capataz_x + 15, capataz_y + 32), 14)
+        pygame.draw.circle(self.screen, ConfigPygame.COLOR_CAPATAZ_BORDE, (capataz_x + 15, capataz_y + 32), 14, 2)
+        
+        # Dibujar binoculares/prismaticos (circulos pequenos)
+        pygame.draw.circle(self.screen, (50, 50, 50), (capataz_x + 10, capataz_y + 30), 4)
+        pygame.draw.circle(self.screen, (50, 50, 50), (capataz_x + 20, capataz_y + 30), 4)
+        
+        # Dibujar cuerpo/chaleco del capataz (rectangulo)
+        pygame.draw.rect(self.screen, (100, 80, 50), (capataz_x + 8, capataz_y + 45, 14, 20), border_radius=3)
+        pygame.draw.rect(self.screen, ConfigPygame.COLOR_CAPATAZ_BORDE, (capataz_x + 8, capataz_y + 45, 14, 20), 2, border_radius=3)
+        
+        # Etiqueta
+        texto_capataz = self.font_small.render("CAPATAZ", True, ConfigPygame.COLOR_CAPATAZ_BORDE)
+        texto_rect = texto_capataz.get_rect(center=(capataz_x + 15, capataz_y + 75))
+        self.screen.blit(texto_capataz, texto_rect)
+    
     def _dibujar_agentes(self):
         """Dibuja los agentes en sus posiciones"""
         x_offset = 20
@@ -331,7 +383,7 @@ class AgenteUI:
                 # Color del agente
                 color = ConfigPygame.COLORES_AGENTES[(agente_id - 1) % len(ConfigPygame.COLORES_AGENTES)]
                 
-                # Dibujar círculo del agente
+                # Dibujar circulo del agente
                 pygame.draw.circle(self.screen, color, (x, y), 15)
                 pygame.draw.circle(self.screen, (255, 255, 255), (x, y), 15, 2)
                 
@@ -341,21 +393,21 @@ class AgenteUI:
                 self.screen.blit(texto, texto_rect)
     
     def _dibujar_panel_info(self):
-        """Dibuja el panel de información lateral"""
+        """Dibuja el panel de informacion lateral"""
         x_offset = self.grid_columnas * ConfigPygame.CELL_SIZE + 40
         y_offset = ConfigPygame.HEADER_HEIGHT + 20
         
         if not self.metricas:
             return
         
-        # Título del panel
-        titulo = self.font_subtitle.render("MÉTRICAS", True, ConfigPygame.COLOR_TEXT)
+        # Titulo del panel
+        titulo = self.font_subtitle.render("METRICAS", True, ConfigPygame.COLOR_TEXT)
         self.screen.blit(titulo, (x_offset, y_offset))
         y_offset += 40
         
-        # Exploración
+        # Exploracion
         self._dibujar_seccion_panel(
-            "🔍 EXPLORACIÓN",
+            "[BUSQUEDA] EXPLORACION",
             [
                 f"Celdas: {self.metricas.celdas_exploradas}/{self.metricas.celdas_totales}",
                 f"Progreso: {self.metricas.porcentaje_analizado:.1f}%"
@@ -366,7 +418,7 @@ class AgenteUI:
         
         # Cosecha
         self._dibujar_seccion_panel(
-            "🍅 COSECHA",
+            "[FRUTOS] COSECHA",
             [
                 f"Frutos detectados: {self.metricas.frutos_totales_detectados}",
                 f"Listos: {self.metricas.frutos_listos_cosecha}",
@@ -378,9 +430,9 @@ class AgenteUI:
         
         # Riesgos
         self._dibujar_seccion_panel(
-            "⚠️ RIESGOS",
+            "[ADVERTENCIA] RIESGOS",
             [
-                f"Críticos: {self.metricas.celdas_criticas}",
+                f"Criticos: {self.metricas.celdas_criticas}",
                 f"Alto riesgo: {self.metricas.celdas_alto_riesgo}",
                 f"Tratamientos: {self.metricas.tratamientos_ordenados}"
             ],
@@ -390,10 +442,21 @@ class AgenteUI:
         
         # Agentes
         self._dibujar_seccion_panel(
-            "🤖 AGENTES",
+            "[AGENTES] AGENTES",
             [
                 f"Total: {self.metricas.agentes_activos}",
                 f"Explorando: {self.metricas.agentes_explorando}"
+            ],
+            x_offset, y_offset
+        )
+        y_offset += 80
+        
+        # NUEVO: Info del Capataz
+        self._dibujar_seccion_panel(
+            "[CAPATAZ] CAPATAZ",
+            [
+                f"Posicion: {self.posicion_capataz}",
+                f"Estado: Supervisando"
             ],
             x_offset, y_offset
         )
@@ -404,13 +467,13 @@ class AgenteUI:
         self._dibujar_leyenda(x_offset, y_offset)
     
     def _dibujar_seccion_panel(self, titulo: str, lineas: List[str], x: int, y: int):
-        """Dibuja una sección del panel de información"""
-        # Título de sección
+        """Dibuja una seccion del panel de informacion"""
+        # Titulo de seccion
         texto_titulo = self.font_normal.render(titulo, True, ConfigPygame.COLOR_TEXT)
         self.screen.blit(texto_titulo, (x, y))
         y += 25
         
-        # Líneas de información
+        # Lineas de informacion
         for linea in lineas:
             texto = self.font_small.render(linea, True, ConfigPygame.COLOR_TEXT_DIM)
             self.screen.blit(texto, (x + 10, y))
@@ -440,10 +503,10 @@ class AgenteUI:
             y += 30
     
     def _dibujar_footer(self):
-        """Dibuja el pie de página"""
+        """Dibuja el pie de pagina"""
         y_offset = self.window_height - ConfigPygame.FOOTER_HEIGHT + 20
         
-        # Línea separadora
+        # Linea separadora
         pygame.draw.line(
             self.screen,
             ConfigPygame.COLOR_GRID,
@@ -453,16 +516,16 @@ class AgenteUI:
         )
         
         # Instrucciones
-        texto = self.font_small.render("Presiona ESC para salir", True, ConfigPygame.COLOR_TEXT_DIM)
+        texto = self.font_small.render("Presiona ESC para salir  |  [CAPATAZ] Capataz supervisando en esquina superior izquierda", True, ConfigPygame.COLOR_TEXT_DIM)
         texto_rect = texto.get_rect(center=(self.window_width // 2, y_offset + 10))
         self.screen.blit(texto, texto_rect)
     
+    # ========================================================================
     # CALLBACK DESDE EL MANAGER
+    # ========================================================================
     
     def actualizar(self, estados: List[EstadoCelda], metricas: MetricasSistema):
-        """
-        Callback del Manager: recibe actualizaciones del sistema
-        """
+        """Callback del Manager: recibe actualizaciones del sistema"""
         # Actualizar estado interno
         for estado in estados:
             self.mapa_estados[(estado.x, estado.y)] = estado
@@ -486,20 +549,22 @@ class AgenteUI:
             if estado.nivel_riesgo == NivelRiesgo.CRITICO:
                 self.registro.agregar_evento(
                     'alerta',
-                    f"CRÍTICO en ({estado.x},{estado.y}): {estado.tipo_amenaza}"
+                    f"CRITICO en ({estado.x},{estado.y}): {estado.tipo_amenaza}"
                 )
     
     def actualizar_posicion_agente(self, agente_id: int, x: int, y: int):
-        """Actualiza la posición de un agente físico"""
+        """Actualiza la posicion de un agente fisico"""
         self.posiciones_agentes[agente_id] = (x, y)
     
     def detener(self):
-        """Detiene la visualización"""
+        """Detiene la visualizacion"""
         self.running = False
         if self.pygame_iniciado:
             pygame.quit()
     
+    # ========================================================================
     # RESUMEN FINAL EN TERMINAL
+    # ========================================================================
     
     def mostrar_resumen_final(self):
         """Muestra un resumen final en la terminal"""
@@ -511,7 +576,7 @@ class AgenteUI:
         os.system('clear' if os.name != 'nt' else 'cls')
         
         print("\n" + "="*90)
-        print("✅ EXPLORACIÓN COMPLETADA - RESUMEN FINAL".center(90))
+        print("[OK] EXPLORACION COMPLETADA - RESUMEN FINAL".center(90))
         print("="*90 + "\n")
         
         if self.metricas:
@@ -520,17 +585,18 @@ class AgenteUI:
             
             print(f"⏱  Tiempo total: {mins:02d}:{segs:02d}\n")
             
-            print("📊 RESULTADOS:")
+            print("[DATOS] RESULTADOS:")
             print(f"  • Celdas exploradas: {self.metricas.celdas_exploradas}/{self.metricas.celdas_totales}")
             print(f"  • Cobertura: {self.metricas.porcentaje_analizado:.1f}%")
             print(f"  • Frutos totales detectados: {self.metricas.frutos_totales_detectados}")
             print(f"  • Frutos listos para cosecha: {self.metricas.frutos_listos_cosecha}")
-            print(f"  • 🍅 Frutos cosechados: {self.metricas.frutos_cosechados}")
+            print(f"  • [FRUTOS] Frutos cosechados: {self.metricas.frutos_cosechados}")
             print(f"  • Cosechas realizadas: {self.metricas.cosechas_ordenadas}")
             print(f"  • Tratamientos aplicados: {self.metricas.tratamientos_ordenados}")
-            print(f"  • Celdas críticas detectadas: {self.metricas.celdas_criticas}")
+            print(f"  • Celdas criticas detectadas: {self.metricas.celdas_criticas}")
             print(f"  • Celdas de alto riesgo: {self.metricas.celdas_alto_riesgo}")
             print(f"  • Agentes utilizados: {self.metricas.agentes_activos}")
+            print(f"  • [CAPATAZ] Capataz: Superviso desde {self.posicion_capataz}")
             
             # Eficiencia
             if self.metricas.tiempo_transcurrido > 0:
@@ -540,16 +606,16 @@ class AgenteUI:
                 print(f"  • {celdas_por_minuto:.1f} celdas/minuto")
                 print(f"  • {frutos_por_minuto:.1f} frutos cosechados/minuto")
             
-            # Estadísticas de eventos
+            # Estadisticas de eventos
             total_eventos = len(self.registro.eventos)
             eventos_cosecha = sum(1 for e in self.registro.eventos if e['tipo'] == 'cosecha')
             eventos_tratamiento = sum(1 for e in self.registro.eventos if e['tipo'] == 'tratamiento')
             eventos_alerta = sum(1 for e in self.registro.eventos if e['tipo'] == 'alerta')
             
-            print(f"\n📋 EVENTOS REGISTRADOS:")
+            print(f"\n[INFO] EVENTOS REGISTRADOS:")
             print(f"  • Total: {total_eventos}")
             print(f"  • Cosechas detectadas: {eventos_cosecha}")
             print(f"  • Tratamientos necesarios: {eventos_tratamiento}")
-            print(f"  • Alertas críticas: {eventos_alerta}")
+            print(f"  • Alertas criticas: {eventos_alerta}")
         
         print("\n" + "="*90 + "\n")
