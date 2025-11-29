@@ -30,7 +30,7 @@ Asegúrate de tener los 4 archivos de código en la misma carpeta:
 * `fisico.py`
 * `ui.py`
 
-## ▶️ Ejecución y Uso
+## Ejecución y Uso
 
 Para iniciar la simulación, abre tu terminal en la carpeta del proyecto y ejecuta:
 
