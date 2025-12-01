@@ -15,7 +15,7 @@ public class AgenteManager : MonoBehaviour
     public float delayInicioSegundos = 0.5f;
 
     [Header("Tags de Plantas por Dron")]
-    [Tooltip("Asigna estos tags a tus plantas: PlantaDron0, PlantaDron1, PlantaDron2, PlantaDron3")]
+    [Tooltip("Asigna estos tags a tus plantas: Tomato1, Tomato2, Tomato3, Tomato4")]
     public bool usarSistemaDeTags = true;
 
     private List<PlantaData> todasLasPlantas = new List<PlantaData>();
@@ -87,6 +87,12 @@ public class AgenteManager : MonoBehaviour
             }
         }
 
+        // Enviar plantas al UIController (Agente de Riego)
+        if (uiController != null)
+        {
+            uiController.InicializarConPlantas(todasLasPlantas);
+        }
+
         if (drones.Count == 0)
         {
             Debug.LogError("[MANAGER] ❌ No hay drones asignados!");
@@ -123,6 +129,7 @@ public class AgenteManager : MonoBehaviour
 
         misionInicializada = true;
         Debug.Log("[MANAGER] ✓ Misión inicializada completamente");
+        Debug.Log("[MANAGER] 💧 Agente de Riego UIController activo");
     }
 
     void AjustarRotacionesIniciales()
@@ -153,17 +160,17 @@ public class AgenteManager : MonoBehaviour
     void AsignarPlantasPorTags()
     {
         Debug.Log("[MANAGER] 📋 Usando sistema de asignación por TAGS");
-
+        
         for (int i = 0; i < drones.Count; i++)
         {
             if (drones[i] == null) continue;
-
+            
             string tagBuscado = $"Tomato{i+1}";
             
             // Buscar todas las plantas con el tag específico
             GameObject[] plantasGO = GameObject.FindGameObjectsWithTag(tagBuscado);
             List<PlantaData> plantasDelDron = new List<PlantaData>();
-
+            
             foreach (var go in plantasGO)
             {
                 PlantaData planta = go.GetComponent<PlantaData>();
@@ -172,34 +179,89 @@ public class AgenteManager : MonoBehaviour
                     plantasDelDron.Add(planta);
                 }
             }
-
+            
             if (plantasDelDron.Count == 0)
             {
                 Debug.LogWarning($"[MANAGER] ⚠️ No se encontraron plantas con tag '{tagBuscado}' para Dron {i}");
                 continue;
             }
-
-            // Ordenar plantas por distancia al dron (ruta óptima)
+            
+            // Ordenar plantas por distancia al dron original (ruta óptima)
             var plantasOrdenadas = plantasDelDron
                 .OrderBy(p => Vector3.Distance(drones[i].transform.position, p.transform.position))
                 .ToList();
-
-            // Asignar ruta al dron
-            drones[i].AsignarRuta(plantasOrdenadas, i);
-
+            
+            // VERIFICAR DISPONIBILIDAD DEL DRON
+            int dronAsignado = i;
+            
+            if (!DronDisponible(i))
+            {
+                Debug.LogWarning($"[MANAGER] ⚠️ Dron {i} NO disponible. Buscando dron alternativo...");
+                dronAsignado = BuscarDronMasCercano(plantasOrdenadas[0].transform.position, i);
+                
+                if (dronAsignado == -1)
+                {
+                    Debug.LogError($"[MANAGER] ❌ No hay drones disponibles para plantas con tag '{tagBuscado}'");
+                    continue;
+                }
+                
+                Debug.Log($"[MANAGER] 🔄 Plantas reasignadas de Dron {i} → Dron {dronAsignado}");
+                
+                // Reordenar plantas según la posición del nuevo dron asignado
+                plantasOrdenadas = plantasDelDron
+                    .OrderBy(p => Vector3.Distance(drones[dronAsignado].transform.position, p.transform.position))
+                    .ToList();
+            }
+            
+            // Asignar ruta al dron disponible
+            drones[dronAsignado].AsignarRuta(plantasOrdenadas, dronAsignado);
+            
             // Registrar asignaciones
             foreach (var planta in plantasOrdenadas)
             {
                 if (!plantasAsignadas.ContainsKey(planta))
                 {
-                    plantasAsignadas.Add(planta, drones[i]);
+                    plantasAsignadas.Add(planta, drones[dronAsignado]);
                 }
             }
-
-            Debug.Log($"[MANAGER] 🚁 Dron {i} → {plantasOrdenadas.Count} plantas con tag '{tagBuscado}'");
+            
+            Debug.Log($"[MANAGER] 🚁 Dron {dronAsignado} → {plantasOrdenadas.Count} plantas con tag '{tagBuscado}'");
         }
-
+        
         Debug.Log("[MANAGER] ✔ Asignación por tags COMPLETADA");
+    }
+
+    bool DronDisponible(int indiceDron)
+    {
+        if (indiceDron < 0 || indiceDron >= drones.Count || drones[indiceDron] == null)
+            return false;
+        
+        // Aquí puedes agregar validaciones adicionales:
+        // return drones[indiceDron].bateria > 20f && !drones[indiceDron].enMantenimiento;
+        
+        return true;
+    }
+
+    int BuscarDronMasCercano(Vector3 posicion, int excluirDron = -1)
+    {
+        float menorDistancia = float.MaxValue;
+        int dronMasCercano = -1;
+        
+        for (int i = 0; i < drones.Count; i++)
+        {
+            if (i == excluirDron || drones[i] == null || !DronDisponible(i))
+                continue;
+            
+            float distancia = Vector3.Distance(drones[i].transform.position, posicion);
+            
+            if (distancia < menorDistancia)
+            {
+                menorDistancia = distancia;
+                dronMasCercano = i;
+            }
+        }
+        
+        return dronMasCercano;
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -221,7 +283,6 @@ public class AgenteManager : MonoBehaviour
             List<PlantaData> rutaDron = new List<PlantaData>();
             Vector3 posicionActual = drones[i].transform.position;
 
-            // Asignar plantas cercanas al dron
             for (int j = 0; j < plantasPorDron && plantasDisponibles.Count > 0; j++)
             {
                 var plantaCercana = plantasDisponibles
@@ -255,7 +316,11 @@ public class AgenteManager : MonoBehaviour
 
     public void NotificarAnalisis(PlantaData planta, int idDron)
     {
-        if (!misionInicializada || planta == null) return;
+        if (!misionInicializada || planta == null) 
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAnalisis llamado pero misión no inicializada o planta null");
+            return;
+        }
 
         if (reportesDrones.ContainsKey(idDron))
         {
@@ -264,62 +329,113 @@ public class AgenteManager : MonoBehaviour
 
         totalPlantasAnalizadas++;
 
+        Debug.Log($"[MANAGER] 📊 Análisis recibido de Dron {idDron}: {planta.nombreComun} (Total: {totalPlantasAnalizadas})");
+
         if (uiController != null)
         {
             uiController.MostrarAnalisis(planta, idDron);
+        }
+        else
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para mostrar análisis");
         }
 
         // Registrar alertas específicas
         if (planta.EstaListaParaCosechar())
         {
+            Debug.Log($"[MANAGER] 🌾 {planta.nombreComun} lista para cosechar");
             uiController?.RegistrarAlerta(planta, idDron, "🌾 Lista para cosechar");
         }
 
         if (planta.EstaMuyVerde())
         {
+            Debug.Log($"[MANAGER] 🥬 {planta.nombreComun} muy verde");
             uiController?.RegistrarAlerta(planta, idDron, "🥬 Planta muy verde");
         }
 
         if (planta.TienePlagaActiva())
         {
             totalPlagasDetectadas++;
+            Debug.Log($"[MANAGER] 🐛 Plaga activa en {planta.nombreComun} (Total: {totalPlagasDetectadas})");
             uiController?.RegistrarAlerta(planta, idDron, "🐛 Plaga detectada");
+        }
+
+        // NUEVA: Verificar necesidad de riego
+        if (planta.NecesitaRiego())
+        {
+            Debug.Log($"[MANAGER] 💧 {planta.nombreComun} necesita riego urgente ({planta.humedad:F0}%)");
+            uiController?.RegistrarAlerta(planta, idDron, "💧 Necesita riego urgente");
         }
     }
 
     public void NotificarAlerta(PlantaData planta, int idDron)
     {
-        if (!misionInicializada || planta == null) return;
+        if (!misionInicializada || planta == null) 
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAlerta llamado pero misión no inicializada o planta null");
+            return;
+        }
 
         if (reportesDrones.ContainsKey(idDron))
         {
             reportesDrones[idDron].RegistrarPlaga();
         }
 
+        Debug.Log($"[MANAGER] 🚨 ALERTA de Dron {idDron}: Plaga en {planta.nombreComun}");
+
         if (uiController != null)
         {
             uiController.RegistrarAlerta(planta, idDron);
+        }
+        else
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para mostrar alerta");
         }
     }
 
     public void NotificarAccion(string accion, PlantaData planta, int idDron)
     {
-        if (!misionInicializada || planta == null) return;
+        if (!misionInicializada || planta == null) 
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAccion llamado pero misión no inicializada o planta null");
+            return;
+        }
 
         if (reportesDrones.ContainsKey(idDron))
         {
             reportesDrones[idDron].RegistrarAccion(accion);
         }
 
+        // Log detallado según el tipo de acción
+        string emoji = "🔧";
+        if (accion.Contains("pesticida") || accion.Contains("Pesticida"))
+            emoji = "💉";
+        else if (accion.Contains("osecha") || accion.Contains("Cosecha"))
+            emoji = "🌾";
+        else if (accion.Contains("verde") || accion.Contains("Verde"))
+            emoji = "🥬";
+        else if (accion.Contains("RIEGO") || accion.Contains("Riego"))
+            emoji = "💧";
+
+        Debug.Log($"[MANAGER] {emoji} Acción de Dron {idDron}: {accion} en {planta.nombreComun}");
+
         if (uiController != null)
         {
             uiController.RegistrarAccion(accion, planta, idDron);
+        }
+        else
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para registrar acción: {accion}");
         }
     }
 
     public void NotificarMisionCompleta(int idDron, int plantasAnalizadas, int plagasDetectadas, int cosechadas)
     {
-        if (!misionInicializada) return;
+        if (!misionInicializada) 
+        {
+            Debug.LogWarning($"[MANAGER] ⚠️ NotificarMisionCompleta llamado pero misión no inicializada");
+            return;
+        }
 
         if (reportesDrones.ContainsKey(idDron))
         {
@@ -328,13 +444,17 @@ public class AgenteManager : MonoBehaviour
 
         totalCosechadas += cosechadas;
 
-        Debug.Log($"[MANAGER] ✓ Dron {idDron} completó su misión");
+        Debug.Log($"[MANAGER] ✅ Dron {idDron} completó su misión:");
+        Debug.Log($"  - Plantas analizadas: {plantasAnalizadas}");
+        Debug.Log($"  - Plagas detectadas: {plagasDetectadas}");
+        Debug.Log($"  - Plantas cosechadas: {cosechadas}");
 
         // Verificar si todos terminaron
         bool todosProcesados = reportesDrones.Values.All(r => r.misionCompleta);
 
         if (todosProcesados)
         {
+            Debug.Log("[MANAGER] 🎯 Todos los drones completaron sus misiones");
             MostrarReporteFinal();
         }
     }
@@ -377,15 +497,50 @@ public class AgenteManager : MonoBehaviour
         int conPlaga = todasLasPlantas.Count(p => p.tienePlaga);
         int maduras = todasLasPlantas.Count(p => p.nivelMaduracion >= 8f);
         int alertas = todasLasPlantas.Count(p => p.TieneAlertasCriticas());
+        int necesitanRiego = todasLasPlantas.Count(p => p.NecesitaRiego());
         float saludProm = todasLasPlantas.Average(p => p.saludGeneral);
+        float humedadProm = todasLasPlantas.Average(p => p.humedad);
 
         Debug.Log("\n════ ESTADÍSTICAS GLOBALES DEL CAMPO ════");
         Debug.Log($"Total plantas: {total}");
         Debug.Log($"Plantas con plaga: {conPlaga} ({(float)conPlaga / total * 100:F1}%)");
         Debug.Log($"Plantas maduras: {maduras} ({(float)maduras / total * 100:F1}%)");
+        Debug.Log($"Plantas que necesitan riego: {necesitanRiego} ({(float)necesitanRiego / total * 100:F1}%)");
         Debug.Log($"Alertas IoT críticas: {alertas}");
         Debug.Log($"Salud promedio del campo: {saludProm:F1}%");
+        Debug.Log($"Humedad promedio del campo: {humedadProm:F1}%");
         Debug.Log("═════════════════════════════════════════");
+    }
+
+    // ════════════════════════════════════════════════════════════
+    // MÉTODOS PÚBLICOS PARA INTEGRACIÓN CON AGENTE DE RIEGO
+    // ════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// Obtiene todas las plantas del campo (para el agente de riego)
+    /// </summary>
+    public List<PlantaData> ObtenerTodasLasPlantas()
+    {
+        return todasLasPlantas;
+    }
+
+    /// <summary>
+    /// Obtiene plantas que necesitan atención inmediata
+    /// </summary>
+    public List<PlantaData> ObtenerPlantasCriticas()
+    {
+        return todasLasPlantas
+            .Where(p => p != null && !p.cosechada && 
+                   (p.NecesitaRiego() || p.TienePlagaActiva() || p.saludGeneral < 40f))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Verifica si la misión está inicializada
+    /// </summary>
+    public bool MisionEstaInicializada()
+    {
+        return misionInicializada;
     }
 
     void OnDestroy()

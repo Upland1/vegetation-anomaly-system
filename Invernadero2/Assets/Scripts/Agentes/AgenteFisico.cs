@@ -18,9 +18,15 @@ public class AgenteFisico : MonoBehaviour
     public float desplazamientoLateral = 1.0f;
     public float suavizadoRotacion = 6f;
 
-    [Header("Cosecha y Acciones")]
+    [Header("Políticas del Agente")]
+    [Tooltip("Nivel mínimo de madurez para cosechar")]
     public float nivelMadurezCosecha = 8f;
+    [Tooltip("Nivel máximo de madurez para considerar 'muy verde'")]
+    public float nivelMuyVerde = 5f;
+    [Tooltip("Tiempo que tarda en aplicar pesticida")]
     public float tiempoAplicacionPesticida = 1.5f;
+    [Tooltip("Tiempo que tarda en cosechar")]
+    public float tiempoCosecha = 1.0f;
 
     // Estado interno
     private List<PlantaData> ruta = new List<PlantaData>();
@@ -33,6 +39,7 @@ public class AgenteFisico : MonoBehaviour
     private int plantasAnalizadas = 0;
     private int plagasDetectadas = 0;
     private int plantasCosechadas = 0;
+    private int pesticidaAplicado = 0;
 
     private Transform surcoTransform;
     private Vector3 direccionSurco;
@@ -59,7 +66,7 @@ public class AgenteFisico : MonoBehaviour
         // Validar que AgenteManager existe
         if (AgenteManager.Instance == null)
         {
-            Debug.LogError($"[DRON {idDron}] ⚠️ AgenteManager.Instance es NULL! Asegúrate de que exista un AgenteManager en la escena.");
+            Debug.LogError($"[DRON {idDron}] ⚠️ AgenteManager.Instance es NULL!");
         }
     }
 
@@ -99,7 +106,7 @@ public class AgenteFisico : MonoBehaviour
             Vector3 mirarDerecha = -lateralSurco;
             transform.rotation = Quaternion.LookRotation(mirarDerecha, Vector3.up);
 
-            Debug.Log($"[DRON {idDron}] Surco detectado: Largo={largoSurco:F2}u, Inicio={inicioSurco}, Fin={finSurco}");
+            Debug.Log($"[DRON {idDron}] Surco: {surcoAsignado}, Largo={largoSurco:F2}u");
         }
 
         if (materialDron != null)
@@ -112,7 +119,17 @@ public class AgenteFisico : MonoBehaviour
         rutaActiva = true;
         indiceActual = 0;
 
-        Debug.Log($"[DRON {idDron}] Ruta asignada ({ruta.Count} plantas), Surco: {surcoAsignado}");
+        Debug.Log($"[DRON {idDron}] 📋 Ruta asignada: {ruta.Count} plantas en {surcoAsignado}");
+        MostrarPoliticas();
+    }
+
+    void MostrarPoliticas()
+    {
+        Debug.Log($"[DRON {idDron}] ═══ POLÍTICAS DEL AGENTE ═══\n" +
+                  $"  P1: IF plaga THEN aplicar_pesticida()\n" +
+                  $"  P2: IF madurez >= {nivelMadurezCosecha} THEN cosechar()\n" +
+                  $"  P3: IF madurez < {nivelMuyVerde} THEN reportar('muy_verde')\n" +
+                  $"  P4: Priorizar plagas > cosecha > monitoreo");
     }
 
     void Update()
@@ -128,6 +145,15 @@ public class AgenteFisico : MonoBehaviour
         }
 
         PlantaData objetivo = ruta[indiceActual];
+        
+        // Saltar plantas ya cosechadas
+        if (objetivo.cosechada)
+        {
+            Debug.Log($"[DRON {idDron}] ⏭️ Saltando {objetivo.nombreComun} (ya cosechada)");
+            indiceActual++;
+            return;
+        }
+
         Vector3 destino = CalcularDestinoSurco(objetivo);
 
         transform.position = Vector3.MoveTowards(
@@ -165,17 +191,15 @@ public class AgenteFisico : MonoBehaviour
         return puntoEnSurco;
     }
 
-    // ============================================================
+    // ═══════════════════════════════════════════════════════════
     // ANÁLISIS COMPLETO DE LA PLANTA
-    // ============================================================
+    // ═══════════════════════════════════════════════════════════
     IEnumerator AnalizarPlantaCompleta(PlantaData planta)
     {
         analizando = true;
         
         if (materialDron != null)
-        {
             materialDron.color = Color.cyan;
-        }
 
         // Dibujar láser de escaneo
         if (puntoSensor != null)
@@ -183,7 +207,7 @@ public class AgenteFisico : MonoBehaviour
             Debug.DrawLine(puntoSensor.position, planta.transform.position, Color.cyan, tiempoAnalisis);
         }
 
-        Debug.Log($"[DRON {idDron}] 🔍 Iniciando análisis de {planta.nombreComun}...");
+        Debug.Log($"[DRON {idDron}] 🔍 Analizando {planta.nombreComun}...");
 
         // Tiempo de escaneo
         yield return new WaitForSeconds(tiempoAnalisis);
@@ -194,17 +218,9 @@ public class AgenteFisico : MonoBehaviour
             plagasDetectadas++;
             planta.MarcarComoEnferma();
             
-            // Alerta inmediata (con validación)
-            if (AgenteManager.Instance != null)
-            {
-                AgenteManager.Instance.NotificarAlerta(planta, idDron);
-            }
-            else
-            {
-                Debug.LogWarning($"[DRON {idDron}] No se pudo notificar alerta - AgenteManager no disponible");
-            }
+            AgenteManager.Instance?.NotificarAlerta(planta, idDron);
             
-            Debug.Log($"[DRON {idDron}] 🐛 ¡PLAGA DETECTADA en {planta.nombreComun}!");
+            Debug.Log($"[DRON {idDron}] 🐛 ¡PLAGA DETECTADA! Nivel: {planta.nivelPlaga:F1}/10");
         }
         else
         {
@@ -215,87 +231,92 @@ public class AgenteFisico : MonoBehaviour
         string estadoSalud = planta.tienePlaga ? "INFECTADA" : "SANA";
         string estadoMadurez = ObtenerEstadoMadurez(planta.nivelMaduracion);
 
-        // Enviar análisis completo al manager (con validación)
-        if (AgenteManager.Instance != null)
-        {
-            AgenteManager.Instance.NotificarAnalisis(planta, idDron);
-        }
+        AgenteManager.Instance?.NotificarAnalisis(planta, idDron);
 
-        Debug.Log($"[DRON {idDron}] 📊 ANÁLISIS COMPLETO:\n" +
+        Debug.Log($"[DRON {idDron}] 📊 ANÁLISIS:\n" +
                   $"  Planta: {planta.nombreComun}\n" +
                   $"  Salud: {estadoSalud}\n" +
                   $"  Madurez: {planta.nivelMaduracion:F1}/10 ({estadoMadurez})\n" +
                   $"  Salud General: {planta.saludGeneral:F1}%");
 
-        // ─────────── EJECUTAR ACCIONES SEGÚN ANÁLISIS ───────────
-        yield return StartCoroutine(EjecutarAccionesPostAnalisis(planta));
+        // ─────────── EJECUTAR POLÍTICAS DEL AGENTE ───────────
+        yield return StartCoroutine(EjecutarPoliticas(planta));
 
         // Marcar como analizada
         planta.yaAnalizada = true;
         plantasAnalizadas++;
 
         if (materialDron != null)
-        {
             materialDron.color = colorOriginal;
-        }
         
         analizando = false;
         indiceActual++;
     }
 
-    IEnumerator EjecutarAccionesPostAnalisis(PlantaData planta)
+    // ═══════════════════════════════════════════════════════════
+    // EJECUCIÓN DE POLÍTICAS DEL AGENTE
+    // ═══════════════════════════════════════════════════════════
+    IEnumerator EjecutarPoliticas(PlantaData planta)
     {
-        // 1. Aplicar pesticida si hay plaga
-        if (planta.tienePlaga)
+        // POLÍTICA 1: Control de Plagas (Prioridad Alta)
+        if (planta.tienePlaga && planta.nivelPlaga > 0)
         {
-            if (materialDron != null)
-            {
-                materialDron.color = Color.red;
-            }
-
-            if (AgenteManager.Instance != null)
-            {
-                AgenteManager.Instance.NotificarAccion("Aplicando pesticida", planta, idDron);
-            }
-            
-            Debug.Log($"[DRON {idDron}] 💉 Aplicando pesticida a {planta.nombreComun}...");
-            
-            yield return new WaitForSeconds(tiempoAplicacionPesticida);
-            planta.MarcarComoSana();
-            
-            Debug.Log($"[DRON {idDron}] ✓ Pesticida aplicado exitosamente");
+            yield return StartCoroutine(AplicarPesticida(planta));
         }
 
-        // 2. Evaluar cosecha
-        if (planta.nivelMaduracion >= nivelMadurezCosecha)
+        // POLÍTICA 2: Cosecha Óptima (Prioridad Media)
+        if (planta.nivelMaduracion >= nivelMadurezCosecha && !planta.cosechada)
         {
-            if (materialDron != null)
-            {
-                materialDron.color = Color.yellow;
-            }
-
-            if (AgenteManager.Instance != null)
-            {
-                AgenteManager.Instance.NotificarAccion("Cosechando", planta, idDron);
-            }
-            
-            Debug.Log($"[DRON {idDron}] 🌾 Cosechando {planta.nombreComun}...");
-            
-            yield return new WaitForSeconds(1f);
-            plantasCosechadas++;
-            
-            Debug.Log($"[DRON {idDron}] ✓ Cosecha completada");
+            yield return StartCoroutine(CosecharPlanta(planta));
         }
-        else if (planta.nivelMaduracion < 5f)
+        // POLÍTICA 3: Monitoreo Preventivo (Prioridad Baja)
+        else if (planta.nivelMaduracion < nivelMuyVerde)
         {
-            if (AgenteManager.Instance != null)
-            {
-                AgenteManager.Instance.NotificarAccion("Muy verde — no cosechar", planta, idDron);
-            }
-            Debug.Log($"[DRON {idDron}] 🥬 {planta.nombreComun} está muy verde, no cosechar");
+            AgenteManager.Instance?.NotificarAccion("🥬 Muy verde — no cosechar", planta, idDron);
+            Debug.Log($"[DRON {idDron}] 🥬 {planta.nombreComun} muy verde (madurez: {planta.nivelMaduracion:F1}/10)");
         }
 
         yield return null;
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // ACCIONES DEL AGENTE QUE AFECTAN EL CULTIVO
+    // ═══════════════════════════════════════════════════════════
+    
+    IEnumerator AplicarPesticida(PlantaData planta)
+    {
+        if (materialDron != null)
+            materialDron.color = Color.red;
+
+        AgenteManager.Instance?.NotificarAccion("💉 Aplicando pesticida", planta, idDron);
+        
+        Debug.Log($"[DRON {idDron}] 💉 Aplicando pesticida a {planta.nombreComun}...");
+        
+        yield return new WaitForSeconds(tiempoAplicacionPesticida);
+        
+        // ✅ ACCIÓN REAL: Afecta la planta
+        planta.AplicarPesticida();
+        pesticidaAplicado++;
+        
+        Debug.Log($"[DRON {idDron}] ✓ Pesticida aplicado - Plaga reducida");
+    }
+
+    IEnumerator CosecharPlanta(PlantaData planta)
+    {
+        if (materialDron != null)
+            materialDron.color = Color.yellow;
+
+        AgenteManager.Instance?.NotificarAccion("🌾 Cosechando", planta, idDron);
+        
+        Debug.Log($"[DRON {idDron}] 🌾 Cosechando {planta.nombreComun} (madurez: {planta.nivelMaduracion:F1}/10)...");
+        
+        yield return new WaitForSeconds(tiempoCosecha);
+        
+        // ✅ ACCIÓN REAL: Remueve la planta del cultivo
+        planta.Cosechar();
+        plantasCosechadas++;
+        
+        Debug.Log($"[DRON {idDron}] ✓ Cosecha completada - Planta removida del cultivo");
     }
 
     string ObtenerEstadoMadurez(float nivel)
@@ -312,22 +333,13 @@ public class AgenteFisico : MonoBehaviour
                   $"Surco: {surcoAsignado}\n" +
                   $"Plantas analizadas: {plantasAnalizadas}/{ruta.Count}\n" +
                   $"Plagas detectadas: {plagasDetectadas}\n" +
+                  $"Pesticida aplicado: {pesticidaAplicado} veces\n" +
                   $"Plantas cosechadas: {plantasCosechadas}\n" +
                   $"════════════════════════════════════");
 
         if (materialDron != null)
-        {
             materialDron.color = Color.green;
-        }
 
-        // Enviar reporte final al manager (con validación)
-        if (AgenteManager.Instance != null)
-        {
-            AgenteManager.Instance.NotificarMisionCompleta(idDron, plantasAnalizadas, plagasDetectadas, plantasCosechadas);
-        }
-        else
-        {
-            Debug.LogWarning($"[DRON {idDron}] No se pudo enviar reporte final - AgenteManager no disponible");
-        }
+        AgenteManager.Instance?.NotificarMisionCompleta(idDron, plantasAnalizadas, plagasDetectadas, plantasCosechadas);
     }
 }
