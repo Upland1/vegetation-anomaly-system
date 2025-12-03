@@ -4,210 +4,188 @@ using System.Collections.Generic;
 public class CameraFollow : MonoBehaviour
 {
     [Header("Referencias")]
-    public List<Transform> targets = new List<Transform>(); // Lista de drones a seguir
-    public bool autoFindDrones = true; // Buscar drones automáticamente al inicio
-    
-    [Header("Ajustes de Cámara")]
-    public float heightAboveTargets = 60f; // Altura sobre los drones (Y) - Reducido a 3/4
-    public float distanceBehind = 45f; // Distancia hacia atrás (Z) - Reducido a 3/4
-    public float smoothSpeed = 5.0f; // Velocidad de seguimiento
-    public float cameraAngle = 45.0f; // Ángulo de inclinación de la cámara
-    
-    [Header("Zoom Dinámico")]
-    public bool enableDynamicZoom = true; // Activar zoom automático basado en dispersión
-    public float minDistanceMultiplier = 1.5f; // Multiplicador mínimo de distancia
-    public float maxDistanceMultiplier = 3.5f; // Multiplicador máximo de distancia
-    public float minHeight = 30f; // Altura mínima - Reducido a 3/4
-    public float maxHeight = 112.5f; // Altura máxima - Reducido a 3/4 (150 * 0.75 = 112.5)
-    public float extraPadding = 15f; // Padding extra - Reducido a 3/4
-    
+    public List<Transform> targets = new List<Transform>();
+    public bool autoFindDrones = true;
+
+    [Header("Ajustes Base de Cámara")]
+    public float heightAboveTargets = 30f;
+    public float distanceBehind = 60f;
+    public float smoothSpeed = 5f;
+
+    [Header("Límites de Distancia y Altura")]
+    public float minFollowDistance = 20f;
+    public float maxFollowDistance = 200f;
+    public float minFollowHeight = 10f;
+    public float maxFollowHeight = 80f;
+
+    [Header("Zoom Automático")]
+    public bool enableDynamicZoom = true;
+    public float spreadZoomMultiplier = 0.4f;
+    public float extraPadding = 4f;
+
+    [Header("Zoom Manual (Scroll)")]
+    public float zoomStepDistance = 5f;
+    public float zoomStepHeight = 2f;
+
+    [Header("Rotación Manual 360°")]
+    public float rotationSpeed = 120f;
+    private float currentYaw = 0f;
+    private float currentPitch = 45f;
+    public float minPitch = 10f;
+    public float maxPitch = 80f;
+
     private Vector3 velocity = Vector3.zero;
 
     void Start()
     {
         if (autoFindDrones)
-        {
             FindAllDrones();
-        }
     }
 
     void LateUpdate()
     {
-        if (targets == null || targets.Count == 0) return;
-
-        // Eliminar targets nulos (drones destruidos)
-        targets.RemoveAll(t => t == null);
-        
         if (targets.Count == 0) return;
 
-        // Calcular el centro de todos los drones
+        targets.RemoveAll(t => t == null);
+        if (targets.Count == 0) return;
+
+        // ---------------------------------------
+        //  ZOOM MANUAL (SCROLL DEL MOUSE)
+        // ---------------------------------------
+        float scroll = Input.GetAxis("Mouse ScrollWheel");
+
+        if (scroll > 0f)
+        {
+            distanceBehind -= zoomStepDistance;
+            heightAboveTargets -= zoomStepHeight;
+        }
+        else if (scroll < 0f)
+        {
+            distanceBehind += zoomStepDistance;
+            heightAboveTargets += zoomStepHeight;
+        }
+
+        distanceBehind = Mathf.Clamp(distanceBehind, minFollowDistance, maxFollowDistance);
+        heightAboveTargets = Mathf.Clamp(heightAboveTargets, minFollowHeight, maxFollowHeight);
+
+        // ---------------------------------------
+        //        ROTACIÓN MANUAL 360°
+        // ---------------------------------------
+        if (Input.GetMouseButton(1)) // clic derecho
+        {
+            float mouseX = Input.GetAxis("Mouse X");
+            float mouseY = Input.GetAxis("Mouse Y");
+
+            currentYaw += mouseX * rotationSpeed * Time.deltaTime;
+            currentPitch -= mouseY * rotationSpeed * Time.deltaTime;
+
+            currentPitch = Mathf.Clamp(currentPitch, minPitch, maxPitch);
+        }
+
+        // ---------------------------------------
+        //            CENTRO DEL GRUPO
+        // ---------------------------------------
         Vector3 centerPoint = GetCenterPoint();
-        
-        // Calcular la dispersión del grupo
-        float groupSpread = GetGroupSpread();
-        
-        // Calcular distancia y altura dinámicas basadas en la dispersión
-        float dynamicHeight = heightAboveTargets;
+
+        // ---------------------------------------
+        //         ZOOM AUTOMÁTICO
+        // ---------------------------------------
         float dynamicDistance = distanceBehind;
-        
+        float dynamicHeight = heightAboveTargets;
+
         if (enableDynamicZoom && targets.Count > 1)
         {
-            // Cuanto más dispersos estén los drones, más lejos debe estar la cámara
-            float spreadFactor = groupSpread + extraPadding;
-            
-            dynamicHeight = Mathf.Clamp(
-                heightAboveTargets + (spreadFactor * minDistanceMultiplier), 
-                minHeight, 
-                maxHeight
-            );
-            
+            float spread = GetGroupSpread() + extraPadding;
+
             dynamicDistance = Mathf.Clamp(
-                distanceBehind + (spreadFactor * minDistanceMultiplier * 0.8f),
-                distanceBehind,
-                distanceBehind * maxDistanceMultiplier
+                distanceBehind + spread * spreadZoomMultiplier,
+                minFollowDistance,
+                maxFollowDistance
+            );
+
+            dynamicHeight = Mathf.Clamp(
+                heightAboveTargets + spread * (spreadZoomMultiplier * 0.5f),
+                minFollowHeight,
+                maxFollowHeight
             );
         }
-        
-        // Calcular posición deseada: centro + offset vertical y hacia atrás
-        Vector3 desiredPosition = centerPoint + new Vector3(0, dynamicHeight, -dynamicDistance);
-        
-        // Moverse suavemente
+
+        // ---------------------------------------
+        //       POSICIÓN ORBITAL REAL
+        // ---------------------------------------
+        Quaternion rot = Quaternion.Euler(currentPitch, currentYaw, 0);
+
+        Vector3 offset = rot * new Vector3(0, 0, -dynamicDistance);
+        offset.y += dynamicHeight;
+
+        Vector3 desiredPosition = centerPoint + offset;
+
         transform.position = Vector3.SmoothDamp(
-            transform.position, 
-            desiredPosition, 
-            ref velocity, 
+            transform.position,
+            desiredPosition,
+            ref velocity,
             1f / smoothSpeed
         );
-        
-        // Mirar hacia el punto central con el ángulo especificado
-        Vector3 lookDirection = centerPoint - transform.position;
-        if (lookDirection != Vector3.zero)
-        {
-            Quaternion targetRotation = Quaternion.LookRotation(lookDirection);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, smoothSpeed * Time.deltaTime);
-        }
+
+        // ---------------------------------------
+        //         MIRAR AL CENTRO SIEMPRE
+        // ---------------------------------------
+        Quaternion lookRotation = Quaternion.LookRotation(centerPoint - transform.position);
+        transform.rotation = Quaternion.Slerp(transform.rotation, lookRotation, Time.deltaTime * smoothSpeed);
     }
 
-    // Encuentra el punto central entre todos los drones
+    // ==============================
+    //     FUNCIONES AUXILIARES
+    // ==============================
+
     Vector3 GetCenterPoint()
     {
         if (targets.Count == 1)
-        {
             return targets[0].position;
-        }
 
-        Bounds bounds = new Bounds(targets[0].position, Vector3.zero);
-        foreach (Transform target in targets)
-        {
-            if (target != null)
-            {
-                bounds.Encapsulate(target.position);
-            }
-        }
+        Bounds b = new Bounds(targets[0].position, Vector3.zero);
+        foreach (Transform t in targets)
+            b.Encapsulate(t.position);
 
-        return bounds.center;
+        return b.center;
     }
 
-    // Calcula qué tan dispersos están los drones
     float GetGroupSpread()
     {
-        if (targets.Count == 1)
-        {
+        if (targets.Count <= 1)
             return 0f;
-        }
 
-        Bounds bounds = new Bounds(targets[0].position, Vector3.zero);
-        foreach (Transform target in targets)
-        {
-            if (target != null)
-            {
-                bounds.Encapsulate(target.position);
-            }
-        }
+        Bounds b = new Bounds(targets[0].position, Vector3.zero);
+        foreach (Transform t in targets)
+            b.Encapsulate(t.position);
 
-        // Retorna la mayor dimensión horizontal (X o Z)
-        return Mathf.Max(bounds.size.x, bounds.size.z);
+        return Mathf.Max(b.size.x, b.size.z);
     }
 
-    // Busca automáticamente todos los GameObjects con el script AgenteFisico
+    // ==============================
+    //     CONTROL DE DRONES
+    // ==============================
+
     public void FindAllDrones()
     {
         targets.Clear();
-        
-        // Buscar todos los objetos con el componente AgenteFisico
-        AgenteFisico[] agentes = FindObjectsOfType<AgenteFisico>();
-        
-        foreach (AgenteFisico agente in agentes)
-        {
+
+        AgenteFisico[] agentes = FindObjectsByType<AgenteFisico>(FindObjectsSortMode.None);
+        foreach (var agente in agentes)
             targets.Add(agente.transform);
-        }
-        
-        Debug.Log($"CameraFollow: Se encontraron {targets.Count} drones con AgenteFisico");
+
+        Debug.Log($"CameraFollow: Se encontraron {targets.Count} drones.");
     }
 
-    // Añadir un drone manualmente
-    public void AddTarget(Transform newTarget)
+    public void AddTarget(Transform t)
     {
-        if (newTarget != null && !targets.Contains(newTarget))
-        {
-            targets.Add(newTarget);
-        }
+        if (t != null && !targets.Contains(t))
+            targets.Add(t);
     }
 
-    // Remover un drone manualmente
-    public void RemoveTarget(Transform targetToRemove)
+    public void RemoveTarget(Transform t)
     {
-        if (targets.Contains(targetToRemove))
-        {
-            targets.Remove(targetToRemove);
-        }
-    }
-
-    // Visualización en el editor (Gizmos)
-    void OnDrawGizmos()
-    {
-        if (targets == null || targets.Count == 0) return;
-
-        // Dibujar líneas hacia cada drone
-        Gizmos.color = Color.cyan;
-        Vector3 center = GetCenterPoint();
-        
-        foreach (Transform target in targets)
-        {
-            if (target != null)
-            {
-                Gizmos.DrawLine(center, target.position);
-                Gizmos.DrawWireSphere(target.position, 2f);
-            }
-        }
-
-        // Dibujar el centro
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(center, 3f);
-        
-        // Dibujar la posición deseada de la cámara
-        Gizmos.color = Color.green;
-        float spread = GetGroupSpread();
-        float dynHeight = heightAboveTargets;
-        float dynDist = distanceBehind;
-        
-        if (enableDynamicZoom && targets.Count > 1)
-        {
-            float spreadFactor = spread + extraPadding;
-            dynHeight = Mathf.Clamp(
-                heightAboveTargets + (spreadFactor * minDistanceMultiplier), 
-                minHeight, 
-                maxHeight
-            );
-            dynDist = Mathf.Clamp(
-                distanceBehind + (spreadFactor * minDistanceMultiplier * 0.8f),
-                distanceBehind,
-                distanceBehind * maxDistanceMultiplier
-            );
-        }
-        
-        Vector3 camPos = center + new Vector3(0, dynHeight, -dynDist);
-        Gizmos.DrawWireSphere(camPos, 5f);
-        Gizmos.DrawLine(camPos, center);
+        if (targets.Contains(t))
+            targets.Remove(t);
     }
 }

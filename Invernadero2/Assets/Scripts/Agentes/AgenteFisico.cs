@@ -66,7 +66,7 @@ public class AgenteFisico : MonoBehaviour
         // Validar que AgenteManager existe
         if (AgenteManager.Instance == null)
         {
-            Debug.LogError($"[DRON {idDron}] ⚠️ AgenteManager.Instance es NULL!");
+            Debug.LogError($"[DRON {idDron}] AgenteManager.Instance es NULL!");
         }
     }
 
@@ -119,7 +119,7 @@ public class AgenteFisico : MonoBehaviour
         rutaActiva = true;
         indiceActual = 0;
 
-        Debug.Log($"[DRON {idDron}] 📋 Ruta asignada: {ruta.Count} plantas en {surcoAsignado}");
+        Debug.Log($"[DRON {idDron}] Ruta asignada: {ruta.Count} plantas en {surcoAsignado}");
         MostrarPoliticas();
     }
 
@@ -149,7 +149,7 @@ public class AgenteFisico : MonoBehaviour
         // Saltar plantas ya cosechadas
         if (objetivo.cosechada)
         {
-            Debug.Log($"[DRON {idDron}] ⏭️ Saltando {objetivo.nombreComun} (ya cosechada)");
+            Debug.Log($"[DRON {idDron}] ⏭Saltando {objetivo.nombreComun} (ya cosechada)");
             indiceActual++;
             return;
         }
@@ -207,7 +207,7 @@ public class AgenteFisico : MonoBehaviour
             Debug.DrawLine(puntoSensor.position, planta.transform.position, Color.cyan, tiempoAnalisis);
         }
 
-        Debug.Log($"[DRON {idDron}] 🔍 Analizando {planta.nombreComun}...");
+        Debug.Log($"[DRON {idDron}] Analizando {planta.nombreComun}...");
 
         // Tiempo de escaneo
         yield return new WaitForSeconds(tiempoAnalisis);
@@ -220,7 +220,7 @@ public class AgenteFisico : MonoBehaviour
             
             AgenteManager.Instance?.NotificarAlerta(planta, idDron);
             
-            Debug.Log($"[DRON {idDron}] 🐛 ¡PLAGA DETECTADA! Nivel: {planta.nivelPlaga:F1}/10");
+            Debug.Log($"[DRON {idDron}] ¡PLAGA DETECTADA! Nivel: {planta.nivelPlaga:F1}/10");
         }
         else
         {
@@ -233,7 +233,7 @@ public class AgenteFisico : MonoBehaviour
 
         AgenteManager.Instance?.NotificarAnalisis(planta, idDron);
 
-        Debug.Log($"[DRON {idDron}] 📊 ANÁLISIS:\n" +
+        Debug.Log($"[DRON {idDron}] ANÁLISIS:\n" +
                   $"  Planta: {planta.nombreComun}\n" +
                   $"  Salud: {estadoSalud}\n" +
                   $"  Madurez: {planta.nivelMaduracion:F1}/10 ({estadoMadurez})\n" +
@@ -272,8 +272,8 @@ public class AgenteFisico : MonoBehaviour
         // POLÍTICA 3: Monitoreo Preventivo (Prioridad Baja)
         else if (planta.nivelMaduracion < nivelMuyVerde)
         {
-            AgenteManager.Instance?.NotificarAccion("🥬 Muy verde — no cosechar", planta, idDron);
-            Debug.Log($"[DRON {idDron}] 🥬 {planta.nombreComun} muy verde (madurez: {planta.nivelMaduracion:F1}/10)");
+            AgenteManager.Instance?.NotificarAccion("Muy verde — no cosechar", planta, idDron);
+            Debug.Log($"[DRON {idDron}] {planta.nombreComun} muy verde (madurez: {planta.nivelMaduracion:F1}/10)");
         }
 
         yield return null;
@@ -288,17 +288,17 @@ public class AgenteFisico : MonoBehaviour
         if (materialDron != null)
             materialDron.color = Color.red;
 
-        AgenteManager.Instance?.NotificarAccion("💉 Aplicando pesticida", planta, idDron);
+        AgenteManager.Instance?.NotificarAccion("Aplicando pesticida", planta, idDron);
         
-        Debug.Log($"[DRON {idDron}] 💉 Aplicando pesticida a {planta.nombreComun}...");
+        Debug.Log($"[DRON {idDron}] Aplicando pesticida a {planta.nombreComun}...");
         
         yield return new WaitForSeconds(tiempoAplicacionPesticida);
         
-        // ✅ ACCIÓN REAL: Afecta la planta
+        // ACCIÓN REAL: Afecta la planta
         planta.AplicarPesticida();
         pesticidaAplicado++;
         
-        Debug.Log($"[DRON {idDron}] ✓ Pesticida aplicado - Plaga reducida");
+        Debug.Log($"[DRON {idDron}] Pesticida aplicado - Plaga reducida");
     }
 
     IEnumerator CosecharPlanta(PlantaData planta)
@@ -306,13 +306,13 @@ public class AgenteFisico : MonoBehaviour
         if (materialDron != null)
             materialDron.color = Color.yellow;
 
-        AgenteManager.Instance?.NotificarAccion("🌾 Cosechando", planta, idDron);
+        AgenteManager.Instance?.NotificarAccion("Cosechando", planta, idDron);
         
-        Debug.Log($"[DRON {idDron}] 🌾 Cosechando {planta.nombreComun} (madurez: {planta.nivelMaduracion:F1}/10)...");
+        Debug.Log($"[DRON {idDron}] Cosechando {planta.nombreComun} (madurez: {planta.nivelMaduracion:F1}/10)...");
         
         yield return new WaitForSeconds(tiempoCosecha);
         
-        // ✅ ACCIÓN REAL: Remueve la planta del cultivo
+        // ACCIÓN REAL: Remueve la planta del cultivo
         planta.Cosechar();
         plantasCosechadas++;
         
@@ -329,7 +329,7 @@ public class AgenteFisico : MonoBehaviour
     void MisionCompletada()
     {
         Debug.Log($"[DRON {idDron}] ════════════════════════════════════\n" +
-                  $"✓ MISIÓN FINALIZADA\n" +
+                  $"MISIÓN FINALIZADA\n" +
                   $"Surco: {surcoAsignado}\n" +
                   $"Plantas analizadas: {plantasAnalizadas}/{ruta.Count}\n" +
                   $"Plagas detectadas: {plagasDetectadas}\n" +

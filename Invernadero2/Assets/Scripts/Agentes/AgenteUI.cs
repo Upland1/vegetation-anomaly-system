@@ -1,361 +1,192 @@
 using UnityEngine;
 using TMPro;
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using UnityEngine.UI; // Necesario para manipular imágenes/paneles UI
 
 public class UIController : MonoBehaviour
 {
-    [Header("Referencias UI")]
-    public TextMeshProUGUI textoEstadoGeneral;
-    public TextMeshProUGUI textoAlertas;
-    public TextMeshProUGUI textoHistorial;
-    public TextMeshProUGUI textoPoliticasAgente;
+    [Header("1. Arrastra los Textos del Canvas aquí")]
+    public TextMeshProUGUI textoMonitorIzq;   // Para datos del dron/planta
+    public TextMeshProUGUI textoAlertasCentro;// Para alertas grandes
+    public TextMeshProUGUI textoHistorialDer; // Para el log
+    public TextMeshProUGUI textoStatsArriba;  // Para estadísticas globales
     
-    [Header("Configuración UI")]
-    public int maxLineasHistorial = 15;
+    [Header("2. Configuración del Mapa/Radar")]
+    public RectTransform mapaRect;      // El panel que sirve de fondo del mapa
+    public RectTransform indicadorPunto; // La imagen (punto rojo) que se moverá
+    // Ajusta estos valores al tamaño real de tu terreno en Unity
+    public Vector2 tamanoTerrenoMundo = new Vector2(100f, 100f); 
     
-    [Header("═══ POLÍTICAS DEL AGENTE DE RIEGO ═══")]
-    [Tooltip("Umbral de humedad para riego urgente")]
-    [Range(0, 50)]
-    public float umbralRiegoUrgente = 30f;
-    
-    [Tooltip("Umbral de humedad para riego preventivo")]
-    [Range(30, 70)]
-    public float umbralRiegoPreventivo = 50f;
-    
-    [Tooltip("Cantidad de agua por riego")]
-    [Range(20, 60)]
-    public float cantidadAguaPorRiego = 40f;
-    
-    [Tooltip("Intervalo de análisis del campo (segundos)")]
-    [Range(1, 10)]
-    public float intervaloAnalisis = 3f;
-    
-    [Tooltip("Activar riego automático")]
-    public bool riegoAutomaticoActivo = true;
-    
-    // Estadísticas
-    private int totalAlertas = 0;
-    private int totalAnalizadas = 0;
-    private int totalCosechadas = 0;
-    private int totalRiegosRealizados = 0;
-    private int totalRiegosUrgentes = 0;
-    private int totalRiegosPreventivos = 0;
-    
-    private Queue<string> historialAcciones = new Queue<string>();
-    
-    // Sistema de análisis periódico
-    private float tiempoDesdeUltimoAnalisis = 0f;
-    private List<PlantaData> todasLasPlantas = new List<PlantaData>();
-    private bool sistemaInicializado = false;
-    
+    [Header("Configuración General")]
+    public int maxLineasHistorial = 12;
+    public float tiempoBorradoAlerta = 4f; 
+
+    // Colores corporativos (Hexadecimales)
+    private string colVerde = "#4CFF00";
+    private string colRojo = "#FF3333";
+    private string colAmarillo = "#FFD700";
+    private string colAzul = "#00FFFF";
+    private string colGris = "#AAAAAA";
+
+    private Queue<string> historial = new Queue<string>();
+    private int totalAnalisis = 0;
+    private int totalPlagas = 0;
+    private Coroutine rutinaAlerta;
+
     void Start()
     {
-        ActualizarUI();
+        if(textoMonitorIzq) textoMonitorIzq.text = "Esperando conexion...";
+        if(textoAlertasCentro) textoAlertasCentro.text = "";
         
-        // Si no se inicializó desde el Manager, buscar plantas manualmente
-        if (todasLasPlantas.Count == 0)
-        {
-            Invoke(nameof(BuscarPlantasManualmente), 1f);
-        }
+        // Ocultar el punto del mapa al inicio si existe
+        if (indicadorPunto != null) indicadorPunto.gameObject.SetActive(false);
+
+        ActualizarStatsGlobales();
+        AgregarHistorial("SISTEMA INICIADO", "INFO");
     }
-    
-    void Update()
-    {
-        if (!riegoAutomaticoActivo || !sistemaInicializado) return;
-        
-        tiempoDesdeUltimoAnalisis += Time.deltaTime;
-        
-        // Ejecutar políticas del agente cada X segundos
-        if (tiempoDesdeUltimoAnalisis >= intervaloAnalisis)
-        {
-            tiempoDesdeUltimoAnalisis = 0f;
-            EjecutarPoliticasDeRiego();
-        }
-    }
-    
+
     // ═══════════════════════════════════════════════════════════
-    // INICIALIZACIÓN (LLAMADO POR AGENTEMANAGER)
+    // SECCIÓN 1: MONITOR EN VIVO (Sin iconos raros)
     // ═══════════════════════════════════════════════════════════
-    
-    /// <summary>
-    /// Inicializa el agente de riego con la lista de plantas del Manager
-    /// </summary>
-    public void InicializarConPlantas(List<PlantaData> plantas)
-    {
-        todasLasPlantas = plantas;
-        sistemaInicializado = true;
-        
-        Debug.Log($"[AGENTE RIEGO] 🌱 Inicializado con {todasLasPlantas.Count} plantas");
-        MostrarPoliticas();
-        
-        AgregarHistorial($"[SISTEMA] Agente de riego inicializado con {plantas.Count} plantas");
-    }
-    
-    void BuscarPlantasManualmente()
-    {
-        todasLasPlantas = FindObjectsOfType<PlantaData>().ToList();
-        
-        if (todasLasPlantas.Count > 0)
-        {
-            sistemaInicializado = true;
-            Debug.Log($"[AGENTE RIEGO] 🌱 {todasLasPlantas.Count} plantas detectadas manualmente");
-            MostrarPoliticas();
-        }
-        else
-        {
-            Debug.LogWarning("[AGENTE RIEGO] ⚠️ No se detectaron plantas en la escena");
-        }
-    }
-    
-    // ═══════════════════════════════════════════════════════════
-    // POLÍTICAS DEL AGENTE DE RIEGO
-    // ═══════════════════════════════════════════════════════════
-    
-    void MostrarPoliticas()
-    {
-        string politicas = $"═══ AGENTE DE RIEGO AUTOMÁTICO ═══\n" +
-                          $"P1: IF humedad < {umbralRiegoUrgente}% THEN regar_urgente()\n" +
-                          $"P2: IF humedad < {umbralRiegoPreventivo}% THEN regar_preventivo()\n" +
-                          $"P3: Priorizar plantas con salud < 50%\n" +
-                          $"P4: Analizar campo cada {intervaloAnalisis}s\n" +
-                          $"Estado: {(riegoAutomaticoActivo ? "ACTIVO ✓" : "INACTIVO ✗")}";
-        
-        if (textoPoliticasAgente != null)
-        {
-            textoPoliticasAgente.text = politicas;
-            textoPoliticasAgente.color = riegoAutomaticoActivo ? Color.cyan : Color.gray;
-        }
-        
-        Debug.Log($"[AGENTE RIEGO] {politicas}");
-    }
-    
-    /// <summary>
-    /// Ejecuta las políticas de riego automático del agente
-    /// </summary>
-    void EjecutarPoliticasDeRiego()
-    {
-        if (todasLasPlantas.Count == 0)
-        {
-            BuscarPlantasManualmente();
-            return;
-        }
-        
-        // POLÍTICA 1: Riego Urgente (Prioridad Alta)
-        var plantasUrgentes = todasLasPlantas
-            .Where(p => p != null && !p.cosechada && p.humedad < umbralRiegoUrgente)
-            .OrderBy(p => p.humedad) // Más secas primero
-            .ThenBy(p => p.saludGeneral) // Menos sanas primero
-            .ToList();
-        
-        foreach (var planta in plantasUrgentes)
-        {
-            RegarPlanta(planta, true);
-        }
-        
-        // POLÍTICA 2: Riego Preventivo (Prioridad Media)
-        var plantasPreventivas = todasLasPlantas
-            .Where(p => p != null && !p.cosechada && 
-                   p.humedad >= umbralRiegoUrgente && 
-                   p.humedad < umbralRiegoPreventivo)
-            .OrderBy(p => p.saludGeneral) // Priorizar las menos sanas
-            .Take(3) // Máximo 3 por ciclo para no saturar
-            .ToList();
-        
-        foreach (var planta in plantasPreventivas)
-        {
-            RegarPlanta(planta, false);
-        }
-    }
-    
-    /// <summary>
-    /// Acción del agente: Regar una planta específica
-    /// </summary>
-    void RegarPlanta(PlantaData planta, bool esUrgente)
-    {
-        if (planta == null || planta.cosechada) return;
-        
-        float humedadAntes = planta.humedad;
-        
-        // Ejecutar acción de riego
-        planta.Regar(cantidadAguaPorRiego);
-        
-        totalRiegosRealizados++;
-        
-        if (esUrgente)
-        {
-            totalRiegosUrgentes++;
-            RegistrarAlerta(planta, -1, $"💧 RIEGO URGENTE aplicado");
-            AgregarHistorial($"[URGENTE] 💧 Riego a {planta.nombreComun} " +
-                           $"({humedadAntes:F0}% → {planta.humedad:F0}%)");
-        }
-        else
-        {
-            totalRiegosPreventivos++;
-            AgregarHistorial($"[PREVENTIVO] 💧 Riego a {planta.nombreComun} " +
-                           $"({humedadAntes:F0}% → {planta.humedad:F0}%)");
-        }
-        
-        // Actualizar estadísticas en UI
-        ActualizarEstadisticasRiego();
-    }
-    
-    void ActualizarEstadisticasRiego()
-    {
-        if (textoPoliticasAgente != null)
-        {
-            textoPoliticasAgente.text = $"═══ AGENTE DE RIEGO AUTOMÁTICO ═══\n" +
-                $"Total riegos: {totalRiegosRealizados}\n" +
-                $"  • Urgentes: {totalRiegosUrgentes}\n" +
-                $"  • Preventivos: {totalRiegosPreventivos}\n" +
-                $"Próximo análisis: {intervaloAnalisis - tiempoDesdeUltimoAnalisis:F1}s\n" +
-                $"Estado: {(riegoAutomaticoActivo ? "ACTIVO ✓" : "INACTIVO ✗")}";
-        }
-    }
-    
-    // ═══════════════════════════════════════════════════════════
-    // MÉTODOS ORIGINALES (Compatibilidad con Drones)
-    // ═══════════════════════════════════════════════════════════
-    
     public void MostrarAnalisis(PlantaData planta, int idDron)
     {
-        if (planta == null) return;
+        if (planta == null || textoMonitorIzq == null) return;
         
-        totalAnalizadas++;
-        string estado = planta.tienePlaga ? "⚠ INFECTADA" : "✓ SANA";
-        Color color = planta.tienePlaga ? Color.red : Color.green;
-        
-        // Detectar estrés hídrico
-        if (planta.humedad < 30f)
-        {
-            estado = "⚠ SECA";
-            color = new Color(1f, 0.5f, 0f); // Naranja
-        }
-        
-        if (textoEstadoGeneral != null)
-        {
-            textoEstadoGeneral.text = $"═══ MONITOREO EN VIVO ═══\n" +
-                $"Dron: #{idDron}\n" +
-                $"Planta: {planta.nombreComun}\n" +
-                $"Madurez: {planta.nivelMaduracion:F1}/10\n" +
-                $"Estado: {estado}\n" +
-                $"Humedad: {planta.humedad:F0}% 💧\n" +
-                $"Salud: {planta.saludGeneral:F0}%\n" +
-                $"Riegos recibidos: {planta.vecesRegada}\n" +
-                $"─────────────────\n" +
-                $"Total Analizadas: {totalAnalizadas}";
-            textoEstadoGeneral.color = color;
-        }
+        totalAnalisis++;
+
+        string estadoIcono = planta.tienePlaga ? "[!]" : "[OK]";
+        string colorEstado = planta.tienePlaga ? colRojo : colVerde;
+        string estadoTexto = planta.tienePlaga ? "INFECTADA" : "SALUDABLE";
+
+        int numeroDronVisible = idDron + 1;
+
+        // Formato de coordenadas más limpio (sin decimales excesivos)
+        string coords = $"X:{planta.transform.position.x:F1}, Z:{planta.transform.position.z:F1}";
+
+        string reporte = 
+            $"<size=120%><color={colAzul}><b>DRON #{numeroDronVisible} - VISTA EN VIVO</b></color></size>\n" +
+            $"----------------------\n" +
+            $"<b>OBJETIVO:</b> <color=white>{planta.nombreComun}</color>\n" +
+            $"<b>MADUREZ:</b>  <color={colAmarillo}>{planta.nivelMaduracion:F1}/10</color>\n" +
+            $"<b>HUMEDAD:</b>  <color={colAzul}>{planta.humedad:F0}%</color>\n" +
+            $"----------------------\n" +
+            $"<b>ESTADO:</b>   <color={colorEstado}>{estadoIcono} {estadoTexto}</color>\n" +
+            $"\n<size=80%><color={colGris}>Ubicacion: {coords}</color></size>";
+
+        textoMonitorIzq.text = reporte;
+        ActualizarStatsGlobales();
     }
-    
-    public void RegistrarAlerta(PlantaData planta, int idDron)
+
+    // ═══════════════════════════════════════════════════════════
+    // SECCIÓN 2: ALERTAS CRÍTICAS Y MAPA
+    // ═══════════════════════════════════════════════════════════
+    public void RegistrarAlerta(PlantaData planta, int idDron, string mensajeCustom = "")
     {
-        RegistrarAlerta(planta, idDron, "🐛 Plaga detectada");
+        totalPlagas++;
+        string mensaje = mensajeCustom == "" ? "PLAGA DETECTADA" : mensajeCustom;
+        int numeroDronVisible = idDron + 1;
+
+        // CAMBIO: Preparamos el texto de coordenadas en lugar del nombre
+        string textoUbicacion = $"({planta.transform.position.x:F1}, {planta.transform.position.z:F1})";
+
+        if (textoAlertasCentro != null)
+        {
+            if (rutinaAlerta != null) StopCoroutine(rutinaAlerta);
+            // Pasamos las coordenadas en vez del nombre
+            rutinaAlerta = StartCoroutine(MostrarAlertaAnimada(textoUbicacion, mensaje, numeroDronVisible));
+        }
+
+        // --- ACTUALIZACIÓN DEL MAPA ---
+        if (mapaRect != null && indicadorPunto != null)
+        {
+            ActualizarPuntoEnMapa(planta.transform.position);
+        }
+
+        // Agregar al historial (aquí sí dejamos el nombre y las coordenadas para referencia completa)
+        string coordsHistorial = $"({planta.transform.position.x:F0},{planta.transform.position.z:F0})";
+        AgregarHistorial($"Dron #{numeroDronVisible}: {mensaje} en {planta.nombreComun} {coordsHistorial}", "ALERTA");
+        
+        ActualizarStatsGlobales();
     }
-    
-    public void RegistrarAlerta(PlantaData planta, int idDron, string mensajeAlerta)
+
+    // Función para mover el punto en el mapa UI
+    void ActualizarPuntoEnMapa(Vector3 posicionMundo)
     {
-        if (planta == null) return;
-        
-        totalAlertas++;
-        
-        if (textoAlertas != null)
-        {
-            string dronInfo = idDron >= 0 ? $"Dron #{idDron}" : "Agente Riego";
-            
-            textoAlertas.text = $"🚨 ALERTA DETECTADA 🚨\n" +
-                $"{mensajeAlerta}\n" +
-                $"Planta: {planta.nombreComun}\n" +
-                $"Detectado por: {dronInfo}\n" +
-                $"Humedad: {planta.humedad:F0}%\n" +
-                $"Coordenadas: ({planta.transform.position.x:F1}, {planta.transform.position.z:F1})\n" +
-                $"─────────────────\n" +
-                $"Total Alertas: {totalAlertas}";
-            
-            // Color según tipo de alerta
-            if (mensajeAlerta.Contains("plaga") || mensajeAlerta.Contains("🐛"))
-                textoAlertas.color = Color.red;
-            else if (mensajeAlerta.Contains("cosechar") || mensajeAlerta.Contains("🌾"))
-                textoAlertas.color = Color.yellow;
-            else if (mensajeAlerta.Contains("verde") || mensajeAlerta.Contains("🥬"))
-                textoAlertas.color = Color.green;
-            else if (mensajeAlerta.Contains("RIEGO") || mensajeAlerta.Contains("💧"))
-                textoAlertas.color = Color.cyan;
-            else
-                textoAlertas.color = Color.white;
-        }
-        
-        if (idDron >= 0)
-        {
-            AgregarHistorial($"[ALERTA] Dron {idDron}: {mensajeAlerta} → {planta.nombreComun}");
-        }
+        indicadorPunto.gameObject.SetActive(true);
+
+        // Convertir posición del mundo (X, Z) a posición normalizada (0 a 1)
+        float normX = (posicionMundo.x / tamanoTerrenoMundo.x) + 0.5f;
+        float normY = (posicionMundo.z / tamanoTerrenoMundo.y) + 0.5f;
+
+        normX = Mathf.Clamp01(normX);
+        normY = Mathf.Clamp01(normY);
+
+        float mapaAncho = mapaRect.rect.width;
+        float mapaAlto = mapaRect.rect.height;
+
+        Vector2 posicionUI = new Vector2(
+            (normX * mapaAncho) - (mapaAncho * 0.5f),
+            (normY * mapaAlto) - (mapaAlto * 0.5f)
+        );
+
+        indicadorPunto.anchoredPosition = posicionUI;
     }
-    
+
+    IEnumerator MostrarAlertaAnimada(string lugar, string tipo, int numDron)
+    {
+        // Alerta visual grande
+        textoAlertasCentro.text = 
+            $"<size=150%><color={colRojo}><b>[!] ALERTA DEL SISTEMA [!]</b></color></size>\n" +
+            $"<size=120%>{tipo}</size>\n" +
+            $"<color={colAmarillo}>Detectado por: Dron #{numDron}</color>\n" +
+            $"<color=white>Ubicacion: {lugar}</color>";
+
+        yield return new WaitForSeconds(tiempoBorradoAlerta);
+        
+        textoAlertasCentro.text = "";
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // SECCIÓN 3: HISTORIAL 
+    // ═══════════════════════════════════════════════════════════
     public void RegistrarAccion(string accion, PlantaData planta, int idDron)
     {
-        if (planta == null) return;
-        
-        string mensaje = $"[DRON {idDron}] {accion}: {planta.nombreComun}";
-        AgregarHistorial(mensaje);
-        
-        if (accion.Contains("Cosechando") || accion.Contains("🌾"))
-            totalCosechadas++;
+        int numeroDronVisible = idDron + 1;
+        AgregarHistorial($"Dron #{numeroDronVisible}: {accion} ({planta.nombreComun})", "INFO");
     }
-    
-    void AgregarHistorial(string mensaje)
+
+    void AgregarHistorial(string mensaje, string tipo)
     {
-        historialAcciones.Enqueue($"[{System.DateTime.Now:HH:mm:ss}] {mensaje}");
+        string hora = System.DateTime.Now.ToString("HH:mm:ss");
+        string colorLog = tipo == "ALERTA" ? colRojo : colVerde;
+        string icono = tipo == "ALERTA" ? "X" : "->"; 
+
+        string linea = $"<color={colGris}>[{hora}]</color> <color={colorLog}>{icono}</color> {mensaje}";
         
-        if (historialAcciones.Count > maxLineasHistorial)
-            historialAcciones.Dequeue();
-        
-        ActualizarHistorial();
-    }
-    
-    void ActualizarHistorial()
-    {
-        if (textoHistorial != null)
+        historial.Enqueue(linea);
+        if (historial.Count > maxLineasHistorial) historial.Dequeue();
+
+        if (textoHistorialDer != null)
         {
-            textoHistorial.text = "═══ HISTORIAL ═══\n" + string.Join("\n", historialAcciones);
+            textoHistorialDer.text = "<b><size=110%>Historial de Actividad</size></b>\n" + string.Join("\n", historial);
         }
     }
-    
-    void ActualizarUI()
-    {
-        if (sistemaInicializado)
-        {
-            MostrarPoliticas();
-        }
-    }
-    
+
     // ═══════════════════════════════════════════════════════════
-    // CONTROLES PÚBLICOS DEL AGENTE
+    // SECCIÓN 4: ESTADÍSTICAS
     // ═══════════════════════════════════════════════════════════
-    
-    /// <summary>
-    /// Activa o desactiva el agente de riego
-    /// </summary>
-    public void ToggleRiegoAutomatico()
+    void ActualizarStatsGlobales()
     {
-        riegoAutomaticoActivo = !riegoAutomaticoActivo;
-        MostrarPoliticas();
-        
-        string estado = riegoAutomaticoActivo ? "ACTIVADO" : "DESACTIVADO";
-        AgregarHistorial($"[SISTEMA] Agente de riego {estado}");
-    }
-    
-    /// <summary>
-    /// Fuerza un análisis inmediato del campo
-    /// </summary>
-    public void ForzarAnalisisRiego()
-    {
-        if (!sistemaInicializado)
+        if (textoStatsArriba != null)
         {
-            Debug.LogWarning("[AGENTE RIEGO] Sistema no inicializado aún");
-            return;
+            textoStatsArriba.text = 
+                $"<color={colVerde}>ANALISIS: <b>{totalAnalisis}</b></color>    |    " +
+                $"<color={colRojo}>PLAGAS: <b>{totalPlagas}</b></color>    |    " +
+                $"<color={colAzul}>ESTADO: <b>EN LINEA</b></color>";
         }
-        
-        AgregarHistorial($"[SISTEMA] Análisis de riego forzado manualmente");
-        EjecutarPoliticasDeRiego();
     }
+
+    public void InicializarConPlantas(List<PlantaData> p) { ActualizarStatsGlobales(); }
 }

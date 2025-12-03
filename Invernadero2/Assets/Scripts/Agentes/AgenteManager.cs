@@ -269,7 +269,7 @@ public class AgenteManager : MonoBehaviour
     // ═══════════════════════════════════════════════════════════
     void AsignarPlantasPorProximidad()
     {
-        Debug.Log("[MANAGER] 📋 Usando sistema de asignación por PROXIMIDAD");
+        Debug.Log("[MANAGER] Usando sistema de asignación por PROXIMIDAD");
 
         int plantasPorDron = Mathf.CeilToInt((float)todasLasPlantas.Count / drones.Count);
         Debug.Log($"[MANAGER] Distribuyendo ~{plantasPorDron} plantas por dron");
@@ -304,10 +304,10 @@ public class AgenteManager : MonoBehaviour
                 }
             }
 
-            Debug.Log($"[MANAGER] 🚁 Dron {i} → {rutaDron.Count} plantas por proximidad");
+            Debug.Log($"[MANAGER] Dron {i} → {rutaDron.Count} plantas por proximidad");
         }
 
-        Debug.Log("[MANAGER] ✔ Asignación por proximidad COMPLETADA");
+        Debug.Log("[MANAGER] Asignación por proximidad COMPLETADA");
     }
 
     // ════════════════════════════════════════════════════════════
@@ -318,7 +318,7 @@ public class AgenteManager : MonoBehaviour
     {
         if (!misionInicializada || planta == null) 
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAnalisis llamado pero misión no inicializada o planta null");
+            Debug.LogWarning($"[MANAGER] NotificarAnalisis llamado pero misión no inicializada o planta null");
             return;
         }
 
@@ -329,7 +329,7 @@ public class AgenteManager : MonoBehaviour
 
         totalPlantasAnalizadas++;
 
-        Debug.Log($"[MANAGER] 📊 Análisis recibido de Dron {idDron}: {planta.nombreComun} (Total: {totalPlantasAnalizadas})");
+        Debug.Log($"[MANAGER] Análisis recibido de Dron {idDron}: {planta.nombreComun} (Total: {totalPlantasAnalizadas})");
 
         if (uiController != null)
         {
@@ -337,34 +337,34 @@ public class AgenteManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para mostrar análisis");
+            Debug.LogWarning($"[MANAGER] UIController no disponible para mostrar análisis");
         }
 
         // Registrar alertas específicas
         if (planta.EstaListaParaCosechar())
         {
-            Debug.Log($"[MANAGER] 🌾 {planta.nombreComun} lista para cosechar");
-            uiController?.RegistrarAlerta(planta, idDron, "🌾 Lista para cosechar");
+            Debug.Log($"[MANAGER] {planta.nombreComun} lista para cosechar");
+            uiController?.RegistrarAlerta(planta, idDron, "Lista para cosechar");
         }
 
         if (planta.EstaMuyVerde())
         {
-            Debug.Log($"[MANAGER] 🥬 {planta.nombreComun} muy verde");
-            uiController?.RegistrarAlerta(planta, idDron, "🥬 Planta muy verde");
+            Debug.Log($"[MANAGER] {planta.nombreComun} muy verde");
+            uiController?.RegistrarAlerta(planta, idDron, "Planta muy verde");
         }
 
         if (planta.TienePlagaActiva())
         {
             totalPlagasDetectadas++;
-            Debug.Log($"[MANAGER] 🐛 Plaga activa en {planta.nombreComun} (Total: {totalPlagasDetectadas})");
-            uiController?.RegistrarAlerta(planta, idDron, "🐛 Plaga detectada");
+            Debug.Log($"[MANAGER] Plaga activa en {planta.nombreComun} (Total: {totalPlagasDetectadas})");
+            uiController?.RegistrarAlerta(planta, idDron, "Plaga detectada");
         }
 
         // NUEVA: Verificar necesidad de riego
         if (planta.NecesitaRiego())
         {
             Debug.Log($"[MANAGER] 💧 {planta.nombreComun} necesita riego urgente ({planta.humedad:F0}%)");
-            uiController?.RegistrarAlerta(planta, idDron, "💧 Necesita riego urgente");
+            uiController?.RegistrarAlerta(planta, idDron, "Necesita riego urgente");
         }
     }
 
@@ -372,7 +372,7 @@ public class AgenteManager : MonoBehaviour
     {
         if (!misionInicializada || planta == null) 
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAlerta llamado pero misión no inicializada o planta null");
+            Debug.LogWarning($"[MANAGER] NotificarAlerta llamado pero misión no inicializada o planta null");
             return;
         }
 
@@ -381,7 +381,7 @@ public class AgenteManager : MonoBehaviour
             reportesDrones[idDron].RegistrarPlaga();
         }
 
-        Debug.Log($"[MANAGER] 🚨 ALERTA de Dron {idDron}: Plaga en {planta.nombreComun}");
+        Debug.Log($"[MANAGER] ALERTA de Dron {idDron}: Plaga en {planta.nombreComun}");
 
         if (uiController != null)
         {
@@ -389,7 +389,7 @@ public class AgenteManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para mostrar alerta");
+            Debug.LogWarning($"[MANAGER] UIController no disponible para mostrar alerta");
         }
     }
 
@@ -397,7 +397,7 @@ public class AgenteManager : MonoBehaviour
     {
         if (!misionInicializada || planta == null) 
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ NotificarAccion llamado pero misión no inicializada o planta null");
+            Debug.LogWarning($"[MANAGER] NotificarAccion llamado pero misión no inicializada o planta null");
             return;
         }
 
@@ -406,18 +406,7 @@ public class AgenteManager : MonoBehaviour
             reportesDrones[idDron].RegistrarAccion(accion);
         }
 
-        // Log detallado según el tipo de acción
-        string emoji = "🔧";
-        if (accion.Contains("pesticida") || accion.Contains("Pesticida"))
-            emoji = "💉";
-        else if (accion.Contains("osecha") || accion.Contains("Cosecha"))
-            emoji = "🌾";
-        else if (accion.Contains("verde") || accion.Contains("Verde"))
-            emoji = "🥬";
-        else if (accion.Contains("RIEGO") || accion.Contains("Riego"))
-            emoji = "💧";
-
-        Debug.Log($"[MANAGER] {emoji} Acción de Dron {idDron}: {accion} en {planta.nombreComun}");
+        Debug.Log($"[MANAGER] Acción de Dron {idDron}: {accion} en {planta.nombreComun}");
 
         if (uiController != null)
         {
@@ -425,7 +414,7 @@ public class AgenteManager : MonoBehaviour
         }
         else
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ UIController no disponible para registrar acción: {accion}");
+            Debug.LogWarning($"[MANAGER] UIController no disponible para registrar acción: {accion}");
         }
     }
 
@@ -433,7 +422,7 @@ public class AgenteManager : MonoBehaviour
     {
         if (!misionInicializada) 
         {
-            Debug.LogWarning($"[MANAGER] ⚠️ NotificarMisionCompleta llamado pero misión no inicializada");
+            Debug.LogWarning($"[MANAGER] NotificarMisionCompleta llamado pero misión no inicializada");
             return;
         }
 
@@ -444,7 +433,7 @@ public class AgenteManager : MonoBehaviour
 
         totalCosechadas += cosechadas;
 
-        Debug.Log($"[MANAGER] ✅ Dron {idDron} completó su misión:");
+        Debug.Log($"[MANAGER] Dron {idDron} completó su misión:");
         Debug.Log($"  - Plantas analizadas: {plantasAnalizadas}");
         Debug.Log($"  - Plagas detectadas: {plagasDetectadas}");
         Debug.Log($"  - Plantas cosechadas: {cosechadas}");
@@ -454,7 +443,7 @@ public class AgenteManager : MonoBehaviour
 
         if (todosProcesados)
         {
-            Debug.Log("[MANAGER] 🎯 Todos los drones completaron sus misiones");
+            Debug.Log("[MANAGER] Todos los drones completaron sus misiones");
             MostrarReporteFinal();
         }
     }
@@ -466,7 +455,7 @@ public class AgenteManager : MonoBehaviour
     void MostrarReporteFinal()
     {
         Debug.Log("════════════════════════════════════════════════════════════");
-        Debug.Log("                  📊 REPORTE FINAL DE MISIÓN");
+        Debug.Log("                  REPORTE FINAL DE MISIÓN");
         Debug.Log("════════════════════════════════════════════════════════════");
         Debug.Log($"Total de plantas analizadas: {totalPlantasAnalizadas}/{todasLasPlantas.Count}");
         Debug.Log($"Total de plagas detectadas: {totalPlagasDetectadas}");
@@ -475,7 +464,7 @@ public class AgenteManager : MonoBehaviour
 
         foreach (var reporte in reportesDrones.Values.OrderBy(r => r.idDron))
         {
-            Debug.Log($"\n🚁 DRON {reporte.idDron}:");
+            Debug.Log($"\nDRON {reporte.idDron}:");
             Debug.Log($"   Plantas analizadas: {reporte.plantasAnalizadas}");
             Debug.Log($"   Plagas detectadas: {reporte.plagasDetectadas}");
             Debug.Log($"   Plantas cosechadas: {reporte.plantasCosechadas}");

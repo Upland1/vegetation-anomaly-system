@@ -148,10 +148,15 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 8d405eb6267c247168ed41222f0f670a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::UIController
-  textoEstadoGeneral: {fileID: 1795003993}
-  textoAlertas: {fileID: 1828571522}
-  textoHistorial: {fileID: 419776747}
-  maxLineasHistorial: 10
+  textoMonitorIzq: {fileID: 1795003993}
+  textoAlertasCentro: {fileID: 1828571522}
+  textoHistorialDer: {fileID: 419776747}
+  textoStatsArriba: {fileID: 0}
+  mapaRect: {fileID: 0}
+  indicadorPunto: {fileID: 0}
+  tamanoTerrenoMundo: {x: 100, y: 100}
+  maxLineasHistorial: 6
+  tiempoBorradoAlerta: 2.5
 --- !u!4 &26705414
 Transform:
   m_ObjectHideFlags: 0
@@ -308,7 +313,7 @@ Camera:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 28661484}
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 2
   m_ClearFlags: 1
   m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
@@ -334,7 +339,7 @@ Camera:
     height: 1
   near clip plane: 0.3
   far clip plane: 1000
-  field of view: 90
+  field of view: 146
   orthographic: 0
   orthographic size: 5
   m_Depth: -1
@@ -360,13 +365,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 28661484}
   serializedVersion: 2
-  m_LocalRotation: {x: 2.3583172e-10, y: 0.9999986, z: 0.0000001431032, w: -0.001647981}
-  m_LocalPosition: {x: -712, y: 557, z: 633}
+  m_LocalRotation: {x: -0, y: -0.083764724, z: 0, w: -0.9964856}
+  m_LocalPosition: {x: -480, y: -0.43, z: -256.88}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: -350.39, z: 0}
 --- !u!114 &28661489
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -374,7 +379,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 28661484}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
   m_Name: 
@@ -423,22 +428,23 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3342ce35373352f4fb9dfb028ba8767a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
-  targets:
-  - {fileID: 1890187142}
-  - {fileID: 294068949}
-  - {fileID: 1133711660}
-  - {fileID: 715061209}
+  targets: []
   autoFindDrones: 1
-  heightAboveTargets: 80
+  heightAboveTargets: 30
   distanceBehind: 60
   smoothSpeed: 5
-  cameraAngle: 45
-  enableDynamicZoom: 0
-  minDistanceMultiplier: 1.5
-  maxDistanceMultiplier: 3.5
-  minHeight: 40
-  maxHeight: 150
-  extraPadding: 20
+  minFollowDistance: 20
+  maxFollowDistance: 200
+  minFollowHeight: 10
+  maxFollowHeight: 80
+  enableDynamicZoom: 1
+  spreadZoomMultiplier: 0.4
+  extraPadding: 4
+  zoomStepDistance: 5
+  zoomStepHeight: 2
+  rotationSpeed: 120
+  minPitch: 10
+  maxPitch: 80
 --- !u!1001 &50921031
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -622,9 +628,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!114 &50921044
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -642,9 +657,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1 &60460342 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: a26313afef116384c8205cbc6e9ff238, type: 3}
@@ -1352,7 +1376,9 @@ MonoBehaviour:
   desplazamientoLateral: 1
   suavizadoRotacion: 6
   nivelMadurezCosecha: 8
+  nivelMuyVerde: 5
   tiempoAplicacionPesticida: 1.5
+  tiempoCosecha: 1
 --- !u!135 &294068948
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -1541,16 +1567,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   targets: []
   autoFindDrones: 1
-  heightAboveTargets: 80
-  distanceBehind: 60
-  smoothSpeed: 1
-  cameraAngle: 45
+  heightAboveTargets: 5
+  distanceBehind: 4
+  smoothSpeed: 5
+  minFollowDistance: 20
+  maxFollowDistance: 200
+  minFollowHeight: 10
+  maxFollowHeight: 80
   enableDynamicZoom: 1
-  minDistanceMultiplier: 1.5
-  maxDistanceMultiplier: 3.5
-  minHeight: 40
-  maxHeight: 150
-  extraPadding: 20
+  spreadZoomMultiplier: 0.4
+  extraPadding: 2
+  zoomStepDistance: 5
+  zoomStepHeight: 2
+  rotationSpeed: 120
+  minPitch: 10
+  maxPitch: 80
 --- !u!114 &303470438
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1757,7 +1788,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -267.8739, w: 0}
+  m_margin: {x: -115.75168, y: 0, z: -267.8739, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -1787,7 +1818,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 1, y: 0}
   m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: -177, y: 421}
+  m_AnchoredPosition: {x: -353, y: 184}
   m_SizeDelta: {x: 500, y: 300}
   m_Pivot: {x: 1, y: 0}
 --- !u!1 &433305710 stripped
@@ -2222,9 +2253,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &520290248
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -2268,9 +2308,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &561778587
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -2335,9 +2384,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1001 &642234380
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2467,9 +2525,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &650793756
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -2513,9 +2580,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &658749357
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -2559,9 +2635,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &678258568
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -2626,9 +2711,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1001 &701043706
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -2809,9 +2903,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1 &708079062
 GameObject:
   m_ObjectHideFlags: 0
@@ -2951,7 +3054,9 @@ MonoBehaviour:
   desplazamientoLateral: 1
   suavizadoRotacion: 6
   nivelMadurezCosecha: 8
+  nivelMuyVerde: 5
   tiempoAplicacionPesticida: 1.5
+  tiempoCosecha: 1
 --- !u!135 &715061208
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -3158,9 +3263,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1001 &764961144
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -3474,16 +3588,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   targets: []
   autoFindDrones: 1
-  heightAboveTargets: 80
-  distanceBehind: 60
-  smoothSpeed: 1
-  cameraAngle: 45
+  heightAboveTargets: 5
+  distanceBehind: 4
+  smoothSpeed: 5
+  minFollowDistance: 20
+  maxFollowDistance: 200
+  minFollowHeight: 10
+  maxFollowHeight: 80
   enableDynamicZoom: 1
-  minDistanceMultiplier: 1.5
-  maxDistanceMultiplier: 3.5
-  minHeight: 40
-  maxHeight: 150
-  extraPadding: 20
+  spreadZoomMultiplier: 0.4
+  extraPadding: 2
+  zoomStepDistance: 5
+  zoomStepHeight: 2
+  rotationSpeed: 120
+  minPitch: 10
+  maxPitch: 80
 --- !u!1 &797995444
 GameObject:
   m_ObjectHideFlags: 0
@@ -3643,9 +3762,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &850676867
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -3911,9 +4039,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1 &1065493843
 GameObject:
   m_ObjectHideFlags: 0
@@ -4050,7 +4187,9 @@ MonoBehaviour:
   desplazamientoLateral: 1
   suavizadoRotacion: 6
   nivelMadurezCosecha: 8
+  nivelMuyVerde: 5
   tiempoAplicacionPesticida: 1.5
+  tiempoCosecha: 1
 --- !u!135 &1133711659
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -4288,9 +4427,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1 &1202045095 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: a26313afef116384c8205cbc6e9ff238, type: 3}
@@ -4733,16 +4881,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   targets: []
   autoFindDrones: 1
-  heightAboveTargets: 80
-  distanceBehind: 60
-  smoothSpeed: 1
-  cameraAngle: 45
+  heightAboveTargets: 5
+  distanceBehind: 4
+  smoothSpeed: 5
+  minFollowDistance: 20
+  maxFollowDistance: 200
+  minFollowHeight: 10
+  maxFollowHeight: 80
   enableDynamicZoom: 1
-  minDistanceMultiplier: 1.5
-  maxDistanceMultiplier: 3.5
-  minHeight: 40
-  maxHeight: 150
-  extraPadding: 20
+  spreadZoomMultiplier: 0.4
+  extraPadding: 2
+  zoomStepDistance: 5
+  zoomStepHeight: 2
+  rotationSpeed: 120
+  minPitch: 10
+  maxPitch: 80
 --- !u!114 &1457211462
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5231,9 +5384,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1001 &1562474722
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5544,16 +5706,21 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::CameraFollow
   targets: []
   autoFindDrones: 1
-  heightAboveTargets: 80
-  distanceBehind: 60
-  smoothSpeed: 1
-  cameraAngle: 45
+  heightAboveTargets: 5
+  distanceBehind: 4
+  smoothSpeed: 5
+  minFollowDistance: 20
+  maxFollowDistance: 200
+  minFollowHeight: 10
+  maxFollowHeight: 80
   enableDynamicZoom: 1
-  minDistanceMultiplier: 1.5
-  maxDistanceMultiplier: 3.5
-  minHeight: 40
-  maxHeight: 150
-  extraPadding: 20
+  spreadZoomMultiplier: 0.4
+  extraPadding: 2
+  zoomStepDistance: 5
+  zoomStepHeight: 2
+  rotationSpeed: 120
+  minPitch: 10
+  maxPitch: 80
 --- !u!114 &1645742054
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -5966,9 +6133,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 80
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!1001 &1660798802
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -6238,7 +6414,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 0, y: 1}
-  m_AnchoredPosition: {x: 19, y: -26}
+  m_AnchoredPosition: {x: 123, y: -519}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &1795003993
@@ -6326,7 +6502,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: 0, y: 0, z: -267.8739, w: 0}
+  m_margin: {x: 0, y: -20.64414, z: -267.8739, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -6426,7 +6602,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 1}
   m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 184, y: -17}
+  m_AnchoredPosition: {x: 117, y: -182}
   m_SizeDelta: {x: 200, y: 50}
   m_Pivot: {x: 0.5, y: 1}
 --- !u!114 &1828571522
@@ -6514,7 +6690,7 @@ MonoBehaviour:
   m_VertexBufferAutoSizeReduction: 0
   m_useMaxVisibleDescender: 1
   m_pageToDisplay: 1
-  m_margin: {x: -272.81946, y: 0, z: -129.20639, w: 0}
+  m_margin: {x: -272.81946, y: 0, z: -303.98926, w: 0}
   m_isUsingLegacyAnimationComponent: 0
   m_isVolumetricText: 0
   m_hasFontAssetChanged: 0
@@ -6833,7 +7009,9 @@ MonoBehaviour:
   desplazamientoLateral: 1
   suavizadoRotacion: 6
   nivelMadurezCosecha: 8
+  nivelMuyVerde: 5
   tiempoAplicacionPesticida: 1.5
+  tiempoCosecha: 1
 --- !u!1 &1891457244 stripped
 GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: a26313afef116384c8205cbc6e9ff238, type: 3}
@@ -6939,9 +7117,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &2030572510
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -6985,9 +7172,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &2053270284
 SphereCollider:
   m_ObjectHideFlags: 0
@@ -7031,9 +7227,18 @@ MonoBehaviour:
   humedad: 65
   nivelMaduracion: 5
   saludGeneral: 100
+  cosechada: 0
+  nivelPlaga: 0
+  tiempoDesdeUltimoPesticida: 0
+  velocidadCrecimiento: 0.01
+  velocidadDeshidratacion: 0.5
+  tiempoDesdeUltimoRiego: 0
+  vecesRegada: 0
   yaAnalizada: 0
   colorSano: {r: 1, g: 0.015686275, b: 0, a: 1}
   colorEnfermo: {r: 0.52156866, g: 0.43529412, b: 0.078431375, a: 1}
+  colorCosechado: {r: 0.39215687, g: 0.39215687, b: 0.39215687, a: 1}
+  colorSeco: {r: 0.54509807, g: 0.27058825, b: 0.07450981, a: 1}
 --- !u!135 &2101408900
 SphereCollider:
   m_ObjectHideFlags: 0
