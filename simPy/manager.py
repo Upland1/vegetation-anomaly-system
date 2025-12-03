@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+<<<<<<< HEAD
 AGENTE MANAGER CON COORDINACION MULTI-AGENTE Y CAPATAZ
 =======================================================
 
@@ -12,6 +13,11 @@ Responsabilidades:
 6. Enviar informacion de estado al Agente UI
 7. COORDINAR 5 AGENTES FISICOS trabajando en paralelo
 8. INTEGRAR AL CAPATAZ como supervisor
+=======
+AGENTE CAPATAZ (MANAGER)
+========================
+El "Ojo" que todo lo ve. Coordina recolectores y detecta amenazas críticas (Gusano).
+>>>>>>> Simulation
 """
 
 from typing import List, Dict, Tuple, Optional, Callable
@@ -19,18 +25,31 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 import time
-from threading import Thread, Lock
+from threading import Thread, Lock, Event
 
+<<<<<<< HEAD
 # Importar Capataz
 from capataz import AgenteCapataz, TipoOrden
 
 
 class NivelRiesgo(Enum):
     """Niveles de riesgo para el analisis"""
+=======
+# --- ENUMS Y ESTRUCTURAS DE DATOS ---
+
+class OrdenCapataz(Enum):
+    """Las órdenes que el Capataz puede dar"""
+    CONTINUAR = "CONTINUA"    # Estado normal
+    PARAR = "PARATE"          # Pausa temporal
+    ABANDONAR = "ABANDONA"    # Cancelación de emergencia
+
+class NivelRiesgo(Enum):
+>>>>>>> Simulation
     SIN_DATOS = 0
     BAJO = 1
     MEDIO = 2
     ALTO = 3
+<<<<<<< HEAD
     CRITICO = 4
 
 
@@ -47,37 +66,44 @@ class TipoAmenaza(Enum):
 
 class EstadoMaduracion(Enum):
     """Estados de maduracion de los jitomates"""
+=======
+    CRITICO = 4 # Aquí vive el Gusano
+
+class EstadoMaduracion(Enum):
+>>>>>>> Simulation
     VERDE = "Verde"
     EN_MADURACION = "En maduracion"
     MADURO = "Maduro"
     SOBRE_MADURO = "Sobre maduro"
 
-
 @dataclass
 class DatosExploracion:
+<<<<<<< HEAD
     """Datos que envia el Agente Fisico al Manager"""
+=======
+>>>>>>> Simulation
     x: int
     y: int
     temperatura: float
     humedad: float
-    nivel_plagas: float
+    nivel_plagas: float # > 8.0 es el GUSANO
     nivel_nutrientes: float
     nivel_maduracion: float
-    tamano_fruto: float
-    color_rgb: Tuple[int, int, int]
     frutos_disponibles: int
+    agente_id: int
     timestamp: datetime = field(default_factory=datetime.now)
-    agente_id: int = 0
-
 
 @dataclass
 class InstruccionCosecha:
+<<<<<<< HEAD
     """Instruccion de COSECHA para el Agente Fisico"""
+=======
+>>>>>>> Simulation
     celda_objetivo: Tuple[int, int]
     frutos_a_cosechar: int
-    nivel_maduracion: float
     prioridad: int
     descripcion: str
+<<<<<<< HEAD
     timestamp: datetime = field(default_factory=datetime.now)
     
     def __str__(self):
@@ -97,42 +123,45 @@ class InstruccionTratamiento:
     def __str__(self):
         return f"Tratamiento en {self.celda_objetivo}: {self.tipo_tratamiento} (Urgencia: {self.nivel_urgencia})"
 
+=======
+>>>>>>> Simulation
 
 @dataclass
 class EstadoCelda:
-    """Estado procesado de una celda para la UI"""
     x: int
     y: int
     nivel_riesgo: NivelRiesgo
     tipo_amenaza: str
-    valor_riesgo: float
-    requiere_tratamiento: bool
-    prioridad: int
-    estado_maduracion: EstadoMaduracion
     frutos_disponibles: int
     listo_para_cosechar: bool
-    timestamp: datetime = field(default_factory=datetime.now)
+    tiene_gusano: bool = False # Flag específico para el gusano
 
+@dataclass
+class EstadoAgenteVisibilidad:
+    """Información para que la UI pinte al agente y sus órdenes"""
+    id: int
+    x: int
+    y: int
+    orden_actual: OrdenCapataz
+    bateria: float
+    cargando_frutos: int
 
 @dataclass
 class MetricasSistema:
+<<<<<<< HEAD
     """Metricas del sistema para la UI"""
+=======
+>>>>>>> Simulation
     tiempo_transcurrido: float = 0.0
     celdas_exploradas: int = 0
     celdas_totales: int = 0
-    porcentaje_analizado: float = 0.0
-    celdas_criticas: int = 0
-    celdas_alto_riesgo: int = 0
-    tratamientos_ordenados: int = 0
-    frutos_totales_detectados: int = 0
-    frutos_listos_cosecha: int = 0
-    cosechas_ordenadas: int = 0
     frutos_cosechados: int = 0
     agentes_activos: int = 0
-    agentes_explorando: int = 0
-    timestamp: datetime = field(default_factory=datetime.now)
+    amenazas_gusano: int = 0 # Contador de gusanos
 
+# --- CLASE PRINCIPAL ---
 
+<<<<<<< HEAD
 # AGENTE MANAGER CON COORDINACION Y CAPATAZ
 
 class AgenteManager:
@@ -157,17 +186,22 @@ class AgenteManager:
             num_agentes: Número de agentes fisicos a coordinar
         """
         # Configuracion del grid
+=======
+class AgenteCapataz:
+    """
+    El Capataz: Observa, evalúa riesgos críticos y da órdenes imperativas.
+    """
+    
+    def __init__(self, grid_filas: int = 10, grid_columnas: int = 10, num_agentes: int = 3):
+>>>>>>> Simulation
         self.grid_filas = grid_filas
         self.grid_columnas = grid_columnas
-        self.celdas_totales = grid_filas * grid_columnas
         self.num_agentes = num_agentes
         
-        # Almacenamiento de datos
+        # Datos del huerto
         self.mapa_estados: Dict[Tuple[int, int], EstadoCelda] = {}
-        self.datos_crudos: Dict[Tuple[int, int], DatosExploracion] = {}
-        
-        # Colas de instrucciones separadas
         self.cola_cosechas: List[InstruccionCosecha] = []
+<<<<<<< HEAD
         self.cola_tratamientos: List[InstruccionTratamiento] = []
         
         # Control de exploracion
@@ -177,16 +211,25 @@ class AgenteManager:
         self.agentes_fisicos: List = []
         self.agentes_threads: List[Thread] = []
         self.lock_agentes = Lock()
+=======
+        self.celdas_exploradas: set = set()
+        
+        # Gestión de Agentes Físicos
+        self.agentes_fisicos = []
+        # Diccionario para controlar los hilos de los agentes
+        # Key: agente_id, Value: {'evento_pausa': Event, 'flag_abortar': bool, 'orden_actual': OrdenCapataz}
+        self.controles_agentes = {}
+>>>>>>> Simulation
         
         # Metricas
         self.tiempo_inicio = time.time()
-        self.cosechas_ordenadas_total = 0
-        self.tratamientos_ordenados_total = 0
         self.frutos_cosechados_total = 0
+        self.contador_gusanos = 0
         
-        # Callbacks
-        self._callback_agente_ui: Optional[Callable] = None
+        # Callback UI
+        self._callback_ui: Optional[Callable] = None
         
+<<<<<<< HEAD
         # Umbrales
         self.umbrales = {
             'temperatura_min': 15.0,
@@ -228,10 +271,32 @@ class AgenteManager:
         from fisico import AgenteFisico, ConfiguracionAgente
         
         print(f"\n[Manager] [AGENTES] Creando {self.num_agentes} agentes fisicos...")
+=======
+        print(f"[Capataz] 👁️ Observando huerto {grid_filas}x{grid_columnas}")
+
+    def registrar_agente_ui(self, callback):
+        self._callback_ui = callback
+
+    def crear_agentes_fisicos(self):
+        from fisico import AgenteFisico # Import local para evitar ciclo
+>>>>>>> Simulation
         
+        print(f"[Capataz] 📢 Contratando {self.num_agentes} recolectores...")
         for i in range(1, self.num_agentes + 1):
+            # Crear controles de sincronización
+            evento_pausa = Event()
+            evento_pausa.set() # Empieza en verde (Set = True = Continua)
+            
+            self.controles_agentes[i] = {
+                'evento': evento_pausa,
+                'abortar': False,
+                'orden_texto': OrdenCapataz.CONTINUAR
+            }
+            
+            # Instanciar agente inyectándole sus controles
             agente = AgenteFisico(
                 agente_id=i,
+<<<<<<< HEAD
                 callback_enviar_datos=self.recibir_datos_exploracion,
                 callback_reportar_cosecha=self.reportar_cosecha_completada,
                 callback_actualizar_capataz=self._actualizar_capataz,
@@ -287,15 +352,43 @@ class AgenteManager:
         
         # Crear threads para cada agente
         self.agentes_threads = []
+=======
+                callback_datos=self.recibir_datos,
+                callback_cosecha=self.reportar_cosecha,
+                control_evento=evento_pausa,
+                control_abortar=lambda id=i: self.controles_agentes[id]['abortar']
+            )
+            self.agentes_fisicos.append(agente)
+
+    def distribuir_trabajo(self):
+        # Distribución simple por franjas
+        celdas = [(r, c) for r in range(self.grid_filas) for c in range(self.grid_columnas)]
+        chunk = len(celdas) // self.num_agentes
+        for i, agente in enumerate(self.agentes_fisicos):
+            start = i * chunk
+            end = start + chunk if i < self.num_agentes - 1 else len(celdas)
+            agente.asignar_celdas(celdas[start:end])
+
+    def iniciar_jornada(self):
+        threads = []
+>>>>>>> Simulation
         for agente in self.agentes_fisicos:
-            thread = Thread(target=agente.iniciar_exploracion)
-            thread.start()
-            self.agentes_threads.append(thread)
+            t = Thread(target=agente.iniciar_trabajo)
+            t.start()
+            threads.append(t)
         
-        # Esperar que todos terminen
-        for thread in self.agentes_threads:
-            thread.join()
+        # Esperamos a los hilos (esto bloquearía, así que lo hacemos en main usualmente)
+        # Aquí solo retornamos los threads para que main los gestione
+        return threads
+
+    # --- LÓGICA DE ÓRDENES DEL CAPATAZ ---
+
+    def emitir_orden(self, agente_id: int, orden: OrdenCapataz):
+        """Emite una de las 3 órdenes sagradas"""
+        ctrl = self.controles_agentes[agente_id]
+        ctrl['orden_texto'] = orden
         
+<<<<<<< HEAD
         print(f"\n[Manager] [OK] Exploracion multi-agente completada")
         self._mostrar_resumen_agentes()
     
@@ -498,37 +591,77 @@ class AgenteManager:
         
         riesgo_principal = max(riesgos, key=lambda r: r['valor'])
         return EstadoCelda(
+=======
+        if orden == OrdenCapataz.PARAR:
+            ctrl['evento'].clear() # Bloquea el thread del agente
+            print(f"[Capataz] ✋ ORDEN: ¡Agente {agente_id}, PARATE!")
+            
+        elif orden == OrdenCapataz.CONTINUAR:
+            ctrl['abortar'] = False
+            ctrl['evento'].set()   # Desbloquea el thread
+            print(f"[Capataz] 👉 ORDEN: Agente {agente_id}, CONTINUA.")
+            
+        elif orden == OrdenCapataz.ABANDONAR:
+            ctrl['abortar'] = True # Activa bandera de aborto
+            ctrl['evento'].set()   # Asegura que corra para leer la bandera
+            print(f"[Capataz] ⚠️ ORDEN: ¡Agente {agente_id}, ABANDONA LA RECOLECCIÓN!")
+
+    # --- RECEPCIÓN DE DATOS ---
+
+    def recibir_datos(self, datos: DatosExploracion):
+        """El agente envía datos. El Capataz busca al GUSANO."""
+        
+        # 1. Análisis de Riesgo (Buscando al Gusano)
+        tiene_gusano = False
+        nivel_riesgo = NivelRiesgo.BAJO
+        
+        if datos.nivel_plagas > 8.0:
+            tiene_gusano = True
+            nivel_riesgo = NivelRiesgo.CRITICO
+            self.contador_gusanos += 1
+            print(f"[Capataz] 🐛 ¡GUSANO DETECTADO EN ({datos.x}, {datos.y})! Nivel: {datos.nivel_plagas:.1f}")
+            
+            # --- ACCIÓN DEL CAPATAZ ---
+            # Si hay gusano, ordena ABANDONAR al agente que lo vio
+            self.emitir_orden(datos.agente_id, OrdenCapataz.ABANDONAR)
+            
+            # Opcional: Parar a los vecinos por seguridad (ejemplo de lógica compleja)
+            # self.emitir_orden(otro_agente_id, OrdenCapataz.PARAR)
+
+        # 2. Análisis de Cosecha
+        listo_cosecha = (datos.frutos_disponibles > 0 and 
+                         datos.nivel_maduracion > 7.0 and 
+                         not tiene_gusano) # No cosechar si hay gusano
+
+        if listo_cosecha:
+            # Crear instrucción (aunque el agente autónomo ya lo sabe, el manager lo registra)
+            instr = InstruccionCosecha((datos.x, datos.y), datos.frutos_disponibles, 1, "Cosecha standard")
+            self.cola_cosechas.append(instr)
+            # Aquí podríamos asignar la tarea a otro agente si este está ocupado
+            # pero asumiremos que el explorador cosecha lo que encuentra por ahora.
+
+        # 3. Guardar Estado
+        estado = EstadoCelda(
+>>>>>>> Simulation
             x=datos.x, y=datos.y,
-            nivel_riesgo=NivelRiesgo.ALTO,
-            tipo_amenaza=riesgo_principal['tipo'].value,
-            valor_riesgo=riesgo_principal['valor'],
-            requiere_tratamiento=True,
-            prioridad=4,
-            estado_maduracion=estado_maduracion,
+            nivel_riesgo=nivel_riesgo,
+            tipo_amenaza="GUSANO" if tiene_gusano else "Ninguna",
             frutos_disponibles=datos.frutos_disponibles,
-            listo_para_cosechar=listo_cosechar
+            listo_para_cosechar=listo_cosecha,
+            tiene_gusano=tiene_gusano
         )
-    
-    def _determinar_estado_maduracion(self, nivel: float) -> EstadoMaduracion:
-        if nivel >= self.umbrales_cosecha['maduracion_sobre']:
-            return EstadoMaduracion.SOBRE_MADURO
-        elif nivel >= self.umbrales_cosecha['maduracion_minima']:
-            return EstadoMaduracion.MADURO
-        elif nivel >= 4.0:
-            return EstadoMaduracion.EN_MADURACION
-        else:
-            return EstadoMaduracion.VERDE
-    
-    def _generar_instruccion_tratamiento(self, estado: EstadoCelda) -> InstruccionTratamiento:
-        return InstruccionTratamiento(
-            celda_objetivo=(estado.x, estado.y),
-            tipo_tratamiento='aplicar_tratamiento',
-            nivel_urgencia=estado.prioridad,
-            tipo_amenaza=estado.tipo_amenaza,
-            descripcion=f"Tratar {estado.tipo_amenaza}"
-        )
-    
+        self.mapa_estados[(datos.x, datos.y)] = estado
+        self.celdas_exploradas.add((datos.x, datos.y))
+        
+        # 4. Actualizar UI
+        self._notificar_ui()
+
+    def reportar_cosecha(self, cantidad: int):
+        self.frutos_cosechados_total += cantidad
+        self._notificar_ui()
+
     def _notificar_ui(self):
+<<<<<<< HEAD
         """Envia actualizacion al Agente UI"""
         if not self._callback_agente_ui:
             return
@@ -549,30 +682,45 @@ class AgenteManager:
         agentes_explorando = sum(1 for a in self.agentes_fisicos if a.activo and not a.exploracion_completa)
         
         return MetricasSistema(
+=======
+        if not self._callback_ui: return
+        
+        # Preparar datos visuales de los agentes
+        estados_agentes = []
+        for agente in self.agentes_fisicos:
+            # Obtener posición actual del objeto agente
+            pos = agente.posicion_actual
+            orden = self.controles_agentes[agente.agente_id]['orden_texto']
+            
+            vis = EstadoAgenteVisibilidad(
+                id=agente.agente_id,
+                x=pos[0], y=pos[1],
+                orden_actual=orden,
+                bateria=agente.bateria,
+                cargando_frutos=agente.frutos_cargados
+            )
+            estados_agentes.append(vis)
+
+        metricas = MetricasSistema(
+>>>>>>> Simulation
             tiempo_transcurrido=time.time() - self.tiempo_inicio,
             celdas_exploradas=len(self.celdas_exploradas),
-            celdas_totales=self.celdas_totales,
-            porcentaje_analizado=(len(self.celdas_exploradas) / self.celdas_totales) * 100,
-            celdas_criticas=sum(1 for e in self.mapa_estados.values() if e.nivel_riesgo == NivelRiesgo.CRITICO),
-            celdas_alto_riesgo=sum(1 for e in self.mapa_estados.values() if e.nivel_riesgo == NivelRiesgo.ALTO),
-            tratamientos_ordenados=self.tratamientos_ordenados_total,
-            frutos_totales_detectados=frutos_totales,
-            frutos_listos_cosecha=frutos_listos,
-            cosechas_ordenadas=self.cosechas_ordenadas_total,
+            celdas_totales=self.grid_filas * self.grid_columnas,
             frutos_cosechados=self.frutos_cosechados_total,
             agentes_activos=len(self.agentes_fisicos),
-            agentes_explorando=agentes_explorando
+            amenazas_gusano=self.contador_gusanos
         )
+<<<<<<< HEAD
     
     def generar_reporte(self) -> str:
         """Genera reporte con metricas multi-agente y capataz"""
         metricas = self._calcular_metricas()
+=======
+>>>>>>> Simulation
         
-        reporte = f"""
-{'='*70}
-REPORTE DEL SISTEMA - AGENTE MANAGER
-{'='*70}
+        self._callback_ui(list(self.mapa_estados.values()), estados_agentes, metricas)
 
+<<<<<<< HEAD
 AGENTES FISICOS:
   • Total agentes: {metricas.agentes_activos}
   • Agentes explorando: {metricas.agentes_explorando}
@@ -600,3 +748,8 @@ RIESGOS:
         reporte += f"\n{self.capataz.generar_reporte_final()}"
         
         return reporte
+=======
+    def detener_todo(self):
+        for id_a in self.controles_agentes:
+            self.emitir_orden(id_a, OrdenCapataz.ABANDONAR)
+>>>>>>> Simulation

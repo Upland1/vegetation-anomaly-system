@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+<<<<<<< HEAD
 AGENTE FISICO - SISTEMA DE EXPLORACION Y EJECUCION
 ===================================================
 
@@ -11,10 +12,16 @@ Responsabilidades:
 5. Ejecutar instrucciones (COSECHA y TRATAMIENTO)
 6. Reportar resultados
 7. RECIBIR Y OBEDECER ORDENES DEL CAPATAZ
+=======
+AGENTE FÍSICO
+=============
+Recolectores autónomos que escuchan las órdenes del Capataz.
+>>>>>>> Simulation
 """
 
 import time
 import random
+<<<<<<< HEAD
 from typing import Optional, Tuple, List
 from dataclasses import dataclass
 from datetime import datetime
@@ -78,9 +85,16 @@ class AgenteFisico:
             callback_actualizar_capataz: Funcion para notificar al Capataz
             config: Configuracion personalizada
         """
+=======
+from typing import List, Tuple, Callable
+from manager import DatosExploracion, OrdenCapataz
+
+class AgenteFisico:
+    def __init__(self, agente_id: int, callback_datos: Callable, callback_cosecha: Callable, control_evento, control_abortar):
+>>>>>>> Simulation
         self.agente_id = agente_id
-        self.config = config or ConfiguracionAgente(agente_id=agente_id)
         
+<<<<<<< HEAD
         # Callbacks para comunicarse con el Manager y Capataz
         self.callback_enviar_datos = callback_enviar_datos
         self.callback_reportar_cosecha = callback_reportar_cosecha
@@ -260,11 +274,42 @@ class AgenteFisico:
             if self.frutos_cargados >= self.config.capacidad_carga:
                 print(f"[Agente {self.agente_id}] [TRABAJO] Capacidad llena, descargando...")
                 self._descargar_frutos()
+=======
+        # Callbacks y Controles del Capataz
+        self.cb_datos = callback_datos
+        self.cb_cosecha = callback_cosecha
+        self.evento_pausa = control_evento   # threading.Event
+        self.check_abortar = control_abortar # lambda function
+        
+        # Estado físico
+        self.posicion_actual = (0, 0)
+        self.celdas_asignadas = []
+        self.bateria = 100.0
+        self.frutos_cargados = 0
+        self.activo = True
+
+    def asignar_celdas(self, celdas: List[Tuple[int, int]]):
+        self.celdas_asignadas = celdas
+
+    def iniciar_trabajo(self):
+        """Bucle principal de trabajo"""
+        print(f"[Agente {self.agente_id}] 🚜 Arrancando motores.")
+        
+        for celda in self.celdas_asignadas:
+            if not self.activo: break
             
-            # Explorar celda
-            self._explorar_celda(celda)
-            self.celdas_exploradas += 1
+            # --- PUNTO DE CONTROL DEL CAPATAZ (Antes de moverse) ---
+            if not self._verificar_ordenes_capataz(): 
+                break # Si retorna False, es que hubo orden de ABANDONAR
             
+            # 1. Moverse
+            self._mover_a(celda)
+>>>>>>> Simulation
+            
+            # --- PUNTO DE CONTROL (Al llegar) ---
+            if not self._verificar_ordenes_capataz(): break
+            
+<<<<<<< HEAD
             # Procesar instrucciones pendientes
             self._procesar_instrucciones_pendientes()
         
@@ -345,19 +390,64 @@ class AgenteFisico:
             nivel_maduracion = 0.0
             tamano_fruto = 0.0
             color_rgb = (80, 150, 70)
+=======
+            # 2. Explorar y trabajar
+            self._procesar_celda(celda)
+            
+            # Simular descarga si está lleno
+            if self.frutos_cargados >= 20:
+                self._ir_a_base_descargar()
+
+        print(f"[Agente {self.agente_id}] 🏁 Turno finalizado.")
+
+    def _verificar_ordenes_capataz(self) -> bool:
+        """
+        Consulta las señales del Capataz.
+        Retorna True si puede continuar, False si debe abortar.
+        """
+        # 1. Revisar si hay orden de PARAR (wait bloqueará el hilo si está en clear)
+        self.evento_pausa.wait() 
         
-        return DatosExploracion(
-            x=x, y=y,
-            temperatura=temperatura,
-            humedad=humedad,
-            nivel_plagas=nivel_plagas,
-            nivel_nutrientes=nivel_nutrientes,
-            nivel_maduracion=nivel_maduracion,
-            tamano_fruto=tamano_fruto,
-            color_rgb=color_rgb,
-            frutos_disponibles=frutos_disponibles,
+        # 2. Revisar si hay orden de ABANDONAR
+        if self.check_abortar():
+            print(f"[Agente {self.agente_id}] 🚨 ¡Orden de ABANDONAR recibida! Regresando a base...")
+            self.posicion_actual = (0, 0) # Teletransporte de emergencia a base
+            self.activo = False
+            return False
+            
+        return True
+
+    def _mover_a(self, celda):
+        """Simula movimiento con retardo"""
+        # Distancia Manhattan simple
+        dist = abs(celda[0] - self.posicion_actual[0]) + abs(celda[1] - self.posicion_actual[1])
+        # Tiempo de viaje
+        time.sleep(dist * 0.1) 
+        self.posicion_actual = celda
+        self.bateria -= 0.1 * dist
+
+    def _procesar_celda(self, celda):
+        """Simula sensores y recolección"""
+        # Simulación de datos aleatorios
+        plagas = random.uniform(0, 10)
+        # Probabilidad baja de GUSANO (plaga > 8)
+        if random.random() < 0.05: 
+            plagas = 9.5 
+>>>>>>> Simulation
+        
+        maduracion = random.uniform(0, 10)
+        frutos = random.randint(0, 5) if maduracion > 4 else 0
+        
+        datos = DatosExploracion(
+            x=celda[0], y=celda[1],
+            temperatura=25.0, humedad=60.0,
+            nivel_plagas=plagas,
+            nivel_nutrientes=5.0,
+            nivel_maduracion=maduracion,
+            frutos_disponibles=frutos,
             agente_id=self.agente_id
         )
+<<<<<<< HEAD
     
     def _mover_a(self, celda: Tuple[int, int]):
         """
@@ -552,3 +642,26 @@ class AgenteFisico:
             'exploracion_completa': self.exploracion_completa,
             'estado_capataz': self.estado_capataz
         }
+=======
+        
+        # Enviar al Capataz
+        self.cb_datos(datos)
+        
+        # Lógica autónoma de cosecha (si el Capataz no ha gritado ABANDONA tras ver los datos)
+        if plagas < 8.0 and frutos > 0 and maduracion > 7.0:
+            self._cosechar(frutos)
+
+    def _cosechar(self, cantidad):
+        """Acción física de cosechar"""
+        # Verificamos orden antes de empezar la tarea pesada
+        if not self._verificar_ordenes_capataz(): return
+
+        time.sleep(0.5) # Tiempo que tarda en cosechar
+        self.frutos_cargados += cantidad
+        self.cb_cosecha(cantidad)
+
+    def _ir_a_base_descargar(self):
+        print(f"[Agente {self.agente_id}] 📦 Descargando...")
+        time.sleep(1)
+        self.frutos_cargados = 0
+>>>>>>> Simulation

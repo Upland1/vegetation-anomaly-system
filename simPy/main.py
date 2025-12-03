@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+<<<<<<< HEAD
 SISTEMA MULTI-AGENTE - PUNTO DE ENTRADA PRINCIPAL
 ==================================================
 
@@ -27,9 +28,14 @@ INSTRUCCIONES DE USO:
    python main.py
 
 4. Para personalizar la simulacion, edita las constantes al inicio del archivo
+=======
+MAIN
+====
+Punto de entrada.
+>>>>>>> Simulation
 """
-
 import time
+<<<<<<< HEAD
 import sys
 import os
 from threading import Thread
@@ -42,9 +48,14 @@ if sys.stdout.encoding != 'utf-8':
 # Importar los agentes
 from manager import AgenteManager
 from fisico import AgenteFisico
+=======
+from threading import Thread
+from manager import AgenteCapataz, OrdenCapataz
+>>>>>>> Simulation
 from ui import AgenteUI
 from capataz import AgenteCapataz
 
+<<<<<<< HEAD
 
 # CONFIGURACION DE LA SIMULACION
 
@@ -335,11 +346,22 @@ def main():
     
     # Crear configuracion
     config = ConfiguracionSimulacion()
+=======
+def main():
+    # 1. Inicializar Capataz y UI
+    capataz = AgenteCapataz(grid_filas=10, grid_columnas=10, num_agentes=3)
+    ui = AgenteUI(grid_filas=10, grid_columnas=10)
     
-    # Crear y ejecutar sistema
-    sistema = SistemaMultiAgente(config)
-    sistema.ejecutar_completo()
+    # 2. Conectar
+    capataz.registrar_agente_ui(ui.actualizar)
+    capataz.crear_agentes_fisicos()
+    capataz.distribuir_trabajo()
+>>>>>>> Simulation
     
+    # 3. Iniciar lógica de agentes en segundo plano
+    threads_agentes = capataz.iniciar_jornada()
+    
+<<<<<<< HEAD
     # Mensaje de despedida
     print("\n" + "="*80)
     print("[ADIOS] GRACIAS POR USAR EL SISTEMA".center(80))
@@ -370,15 +392,55 @@ def modo_prueba_rapida():
 def ejemplo_cultivo_pequeno():
     """Ejemplo: Cultivo pequeno con 2 agentes"""
     print("\n[PEQUENO] EJEMPLO: Cultivo Pequeno (5x5, 2 agentes)\n")
+=======
+    # 4. Iniciar UI en hilo principal (necesario para Pygame)
+    #    Simulamos eventos de teclado para probar al Capataz manualmente también
     
-    config = ConfiguracionSimulacion()
-    config.GRID_FILAS = 5
-    config.GRID_COLUMNAS = 5
-    config.NUM_AGENTES = 2
+    print("\n CONTROLES DE TECLADO (SIMULACIÓN CAPATAZ MANUAL):")
+    print(" [ESPACIO]: Parar a todos los agentes")
+    print(" [ENTER]:   Reanudar a todos los agentes")
+    print(" [ESC]:     Salir")
     
-    sistema = SistemaMultiAgente(config)
-    sistema.ejecutar_completo()
+    # Inyectamos lógica de teclado en el loop de UI para demo
+    import pygame
+>>>>>>> Simulation
+    
+    # Modificamos el loop de UI ligeramente para manejar teclas globales aquí
+    ui.inicializar_pygame()
+    
+    while ui.running:
+        # Eventos UI
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                ui.running = False
+            
+            # --- INTERACCIÓN MANUAL CON EL CAPATAZ ---
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    print("USER INPUT: PARAR TODOS")
+                    for id_a in capataz.controles_agentes:
+                        capataz.emitir_orden(id_a, OrdenCapataz.PARAR)
+                        
+                elif event.key == pygame.K_RETURN:
+                    print("USER INPUT: CONTINUAR TODOS")
+                    for id_a in capataz.controles_agentes:
+                        capataz.emitir_orden(id_a, OrdenCapataz.CONTINUAR)
+        
+        # Renderizado
+        ui.screen.fill((30,30,30))
+        ui._dibujar_capataz()
+        ui._dibujar_grid()
+        ui._dibujar_agentes()
+        ui._dibujar_panel()
+        pygame.display.flip()
+        ui.clock.tick(30)
+        
+        # Verificar si todos terminaron
+        if all(not t.is_alive() for t in threads_agentes):
+            print("Todos los agentes han regresado.")
+            # No cerramos automático para poder ver el resultado final
 
+<<<<<<< HEAD
 
 def ejemplo_cultivo_grande():
     """Ejemplo: Cultivo grande con muchos agentes"""
@@ -459,3 +521,11 @@ if __name__ == "__main__":
     # ejemplo_cultivo_pequeno()
     # ejemplo_cultivo_grande()
     # ejemplo_con_ordenes_capataz()
+=======
+    # Limpieza
+    capataz.detener_todo()
+    pygame.quit()
+
+if __name__ == "__main__":
+    main()
+>>>>>>> Simulation

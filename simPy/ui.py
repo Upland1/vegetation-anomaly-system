@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """
+<<<<<<< HEAD
 AGENTE UI - VISUALIZACION PYGAME + RESUMEN TERMINAL
 ====================================================
 
@@ -10,19 +11,25 @@ Responsabilidades:
 4. MOSTRAR AL CAPATAZ como figura fija
 5. Mostrar metricas en pantalla
 6. Generar resumen final en terminal
+=======
+UI VISUAL
+=========
+Dibuja el Capataz (figura geométrica), el Grid, los Agentes y sus Órdenes.
+>>>>>>> Simulation
 """
 
 import pygame
-import sys
-import os
-from typing import List, Dict, Optional
-from datetime import datetime
-from collections import deque
-import time
+from typing import List
+from manager import EstadoCelda, EstadoAgenteVisibilidad, MetricasSistema, OrdenCapataz, NivelRiesgo
 
-# Importar desde Manager
-from manager import EstadoCelda, MetricasSistema, NivelRiesgo, EstadoMaduracion
+# CONFIGURACIÓN VISUAL
+CELL_SIZE = 50
+MARGIN_TOP = 100 # Espacio para el Capataz
+COLOR_BG = (30, 30, 30)
+COLOR_GRID = (50, 50, 50)
+COLOR_CAPATAZ = (255, 215, 0) # Dorado
 
+<<<<<<< HEAD
 
 # CONFIGURACION DE PYGAME
 
@@ -129,83 +136,92 @@ class AgenteUI:
         self.pygame_iniciado = False
         
         # Referencias de Pygame
-        self.screen = None
-        self.clock = None
+=======
+# Colores de celdas
+COLORS_RISK = {
+    NivelRiesgo.SIN_DATOS: (40, 40, 40),
+    NivelRiesgo.BAJO: (34, 139, 34),    # Verde bosque
+    NivelRiesgo.MEDIO: (255, 165, 0),   # Naranja
+    NivelRiesgo.ALTO: (255, 69, 0),     # Rojo naranja
+    NivelRiesgo.CRITICO: (75, 0, 130)   # Indigo/Morado (GUSANO)
+}
+
+class AgenteUI:
+    def __init__(self, grid_filas, grid_columnas):
+        self.rows = grid_filas
+        self.cols = grid_columnas
+        self.width = grid_columnas * CELL_SIZE + 300 # Panel info
+        self.height = grid_filas * CELL_SIZE + MARGIN_TOP
         
+>>>>>>> Simulation
+        self.screen = None
+        self.running = True
+        
+<<<<<<< HEAD
         print(f"[UI] [OK] Agente UI inicializado - Grid: {grid_filas}x{grid_columnas}")
     
     # ========================================================================
     # INICIALIZACION DE PYGAME (THREAD PRINCIPAL)
     # ========================================================================
     
+=======
+        # Datos a renderizar
+        self.celdas = []
+        self.agentes = []
+        self.metricas = None
+
+>>>>>>> Simulation
     def inicializar_pygame(self):
-        """Inicializa Pygame en el thread principal (macOS compatible)"""
-        if self.pygame_iniciado:
-            return
-        
-        # Inicializar Pygame
         pygame.init()
-        
-        # Calcular dimensiones de ventana
-        grid_width = self.grid_columnas * ConfigPygame.CELL_SIZE
-        grid_height = self.grid_filas * ConfigPygame.CELL_SIZE
-        
-        self.window_width = grid_width + ConfigPygame.INFO_PANEL_WIDTH
-        self.window_height = grid_height + ConfigPygame.HEADER_HEIGHT + ConfigPygame.FOOTER_HEIGHT
-        
-        # Crear ventana (en thread principal)
-        self.screen = pygame.display.set_mode((self.window_width, self.window_height))
-        pygame.display.set_caption("Sistema Multi-Agente - Monitoreo de Cultivo")
-        
-        # Crear reloj
+        self.screen = pygame.display.set_mode((self.width, self.height))
+        pygame.display.set_caption("Sistema Capataz - Control de Jitomates")
+        self.font = pygame.font.SysFont("Arial", 16)
+        self.font_big = pygame.font.SysFont("Arial", 24, bold=True)
         self.clock = pygame.time.Clock()
+
+    def actualizar(self, celdas: List[EstadoCelda], agentes: List[EstadoAgenteVisibilidad], metricas: MetricasSistema):
+        self.celdas = celdas
+        self.agentes = agentes
+        self.metricas = metricas
+
+    def loop(self):
+        if not self.screen: self.inicializar_pygame()
         
-        # Cargar fuentes
-        self.font_title = pygame.font.Font(None, ConfigPygame.FONT_SIZE_TITLE)
-        self.font_subtitle = pygame.font.Font(None, ConfigPygame.FONT_SIZE_SUBTITLE)
-        self.font_normal = pygame.font.Font(None, ConfigPygame.FONT_SIZE_NORMAL)
-        self.font_small = pygame.font.Font(None, ConfigPygame.FONT_SIZE_SMALL)
-        
-        self.pygame_iniciado = True
-    
-    def ejecutar_loop_pygame(self):
-        """
-        Ejecuta el loop principal de Pygame
-        DEBE llamarse desde el thread principal
-        """
-        if not self.pygame_iniciado:
-            self.inicializar_pygame()
-        
-        # Loop principal de eventos y renderizado
         while self.running:
-            # Procesar eventos
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     self.running = False
-                elif event.type == pygame.KEYDOWN:
-                    if event.key == pygame.K_ESCAPE:
-                        self.running = False
+
+            self.screen.fill(COLOR_BG)
             
-            # Renderizar
-            self._renderizar_pygame()
+            self._dibujar_capataz()
+            self._dibujar_grid()
+            self._dibujar_agentes()
+            self._dibujar_panel()
             
-            # Actualizar pantalla
             pygame.display.flip()
+<<<<<<< HEAD
             self.clock.tick(ConfigPygame.FPS)
     
     def actualizar_frame(self):
         """Actualiza un solo frame (útil para control manual del loop)"""
         if not self.pygame_iniciado:
             return
+=======
+            self.clock.tick(30)
+>>>>>>> Simulation
         
-        # Procesar eventos
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.running = False
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.running = False
+        pygame.quit()
+
+    def _dibujar_capataz(self):
+        """Dibuja la figura geométrica fija que representa al Capataz"""
+        cx, cy = self.width // 2, 50
+        # Triángulo (El Ojo)
+        puntos = [(cx, cy - 30), (cx - 30, cy + 20), (cx + 30, cy + 20)]
+        pygame.draw.polygon(self.screen, COLOR_CAPATAZ, puntos)
+        pygame.draw.circle(self.screen, (0,0,0), (cx, cy), 10) # Pupila
         
+<<<<<<< HEAD
         # Renderizar
         self._renderizar_pygame()
         
@@ -273,11 +289,17 @@ class AgenteUI:
             2
         )
     
+=======
+        # Texto del Capataz
+        txt = self.font_big.render("EL CAPATAZ", True, COLOR_CAPATAZ)
+        self.screen.blit(txt, (cx - 50, cy + 25))
+
+>>>>>>> Simulation
     def _dibujar_grid(self):
-        """Dibuja el grid del cultivo"""
-        x_offset = 20
-        y_offset = ConfigPygame.HEADER_HEIGHT + 20
+        start_x = 20
+        start_y = MARGIN_TOP
         
+<<<<<<< HEAD
         for i in range(self.grid_filas):
             for j in range(self.grid_columnas):
                 x = x_offset + j * ConfigPygame.CELL_SIZE
@@ -369,20 +391,59 @@ class AgenteUI:
         texto_rect = texto_capataz.get_rect(center=(capataz_x + 15, capataz_y + 75))
         self.screen.blit(texto_capataz, texto_rect)
     
+=======
+        # Fondo base grid
+        for r in range(self.rows):
+            for c in range(self.cols):
+                rect = (start_x + c*CELL_SIZE, start_y + r*CELL_SIZE, CELL_SIZE-2, CELL_SIZE-2)
+                pygame.draw.rect(self.screen, COLORS_RISK[NivelRiesgo.SIN_DATOS], rect)
+
+        # Celdas con datos
+        for celda in self.celdas:
+            rect = (start_x + celda.y*CELL_SIZE, start_y + celda.x*CELL_SIZE, CELL_SIZE-2, CELL_SIZE-2)
+            color = COLORS_RISK.get(celda.nivel_riesgo, (100,100,100))
+            
+            pygame.draw.rect(self.screen, color, rect)
+            
+            # Si hay frutos listos y no hay gusano
+            if celda.listo_para_cosechar and not celda.tiene_gusano:
+                pygame.draw.circle(self.screen, (255, 0, 0), (rect[0]+CELL_SIZE//2, rect[1]+CELL_SIZE//2), 8) # Tomate
+            
+            # Si hay GUSANO
+            if celda.tiene_gusano:
+                pygame.draw.line(self.screen, (0,0,0), (rect[0], rect[1]), (rect[0]+CELL_SIZE, rect[1]+CELL_SIZE), 3)
+                pygame.draw.line(self.screen, (0,0,0), (rect[0]+CELL_SIZE, rect[1]), (rect[0], rect[1]+CELL_SIZE), 3)
+
+>>>>>>> Simulation
     def _dibujar_agentes(self):
-        """Dibuja los agentes en sus posiciones"""
-        x_offset = 20
-        y_offset = ConfigPygame.HEADER_HEIGHT + 20
+        start_x = 20
+        start_y = MARGIN_TOP
         
-        for agente_id, pos in self.posiciones_agentes.items():
-            if pos:
-                i, j = pos
-                x = x_offset + j * ConfigPygame.CELL_SIZE + ConfigPygame.CELL_SIZE // 2
-                y = y_offset + i * ConfigPygame.CELL_SIZE + ConfigPygame.CELL_SIZE // 2
+        for ag in self.agentes:
+            cx = start_x + ag.y * CELL_SIZE + CELL_SIZE // 2
+            cy = start_y + ag.x * CELL_SIZE + CELL_SIZE // 2
+            
+            # Cuerpo agente
+            color_ag = (100, 200, 255)
+            if ag.orden_actual == OrdenCapataz.ABANDONAR: color_ag = (100, 100, 100) # Gris si abandona
+            pygame.draw.circle(self.screen, color_ag, (cx, cy), 15)
+            
+            # VISUALIZACIÓN DE ÓRDENES (En la cabeza)
+            texto_orden = ""
+            color_texto = (255, 255, 255)
+            
+            if ag.orden_actual == OrdenCapataz.PARAR:
+                texto_orden = "STOP"
+                color_texto = (255, 50, 50)
+                # Dibujar simbolo pausa
+                pygame.draw.rect(self.screen, (255,0,0), (cx-5, cy-5, 4, 10))
+                pygame.draw.rect(self.screen, (255,0,0), (cx+1, cy-5, 4, 10))
                 
-                # Color del agente
-                color = ConfigPygame.COLORES_AGENTES[(agente_id - 1) % len(ConfigPygame.COLORES_AGENTES)]
+            elif ag.orden_actual == OrdenCapataz.ABANDONAR:
+                texto_orden = "ABORT"
+                color_texto = (255, 255, 0)
                 
+<<<<<<< HEAD
                 # Dibujar circulo del agente
                 pygame.draw.circle(self.screen, color, (x, y), 15)
                 pygame.draw.circle(self.screen, (255, 255, 255), (x, y), 15, 2)
@@ -396,10 +457,25 @@ class AgenteUI:
         """Dibuja el panel de informacion lateral"""
         x_offset = self.grid_columnas * ConfigPygame.CELL_SIZE + 40
         y_offset = ConfigPygame.HEADER_HEIGHT + 20
+=======
+            elif ag.orden_actual == OrdenCapataz.CONTINUAR:
+                # Solo mostrar ID si trabaja normal
+                texto_id = self.font.render(str(ag.id), True, (0,0,0))
+                self.screen.blit(texto_id, (cx-4, cy-8))
+
+            if texto_orden:
+                surf = self.font_big.render(texto_orden, True, color_texto)
+                # Dibujar arriba de la cabeza
+                self.screen.blit(surf, (cx - 20, cy - 35))
+
+    def _dibujar_panel(self):
+        x = self.cols * CELL_SIZE + 40
+        y = MARGIN_TOP
+>>>>>>> Simulation
         
-        if not self.metricas:
-            return
+        if not self.metricas: return
         
+<<<<<<< HEAD
         # Titulo del panel
         titulo = self.font_subtitle.render("METRICAS", True, ConfigPygame.COLOR_TEXT)
         self.screen.blit(titulo, (x_offset, y_offset))
@@ -619,3 +695,26 @@ class AgenteUI:
             print(f"  • Alertas criticas: {eventos_alerta}")
         
         print("\n" + "="*90 + "\n")
+=======
+        lines = [
+            f"MÉTRICAS SISTEMA",
+            f"----------------",
+            f"Tiempo: {self.metricas.tiempo_transcurrido:.1f}s",
+            f"Explorado: {self.metricas.celdas_exploradas}",
+            f"Cosechado: {self.metricas.frutos_cosechados} 🍅",
+            f"Gusanos Detectados: {self.metricas.amenazas_gusano} 🐛",
+            f"",
+            f"LEYENDA:",
+            f"Triángulo: Capataz",
+            f"Círculo Azul: Recolector",
+            f"Cuadro Morado: GUSANO",
+            f"Punto Rojo: Jitomate Listo"
+        ]
+        
+        for i, line in enumerate(lines):
+            t = self.font.render(line, True, (200, 200, 200))
+            self.screen.blit(t, (x, y + i*25))
+
+    def detener(self):
+        self.running = False
+>>>>>>> Simulation

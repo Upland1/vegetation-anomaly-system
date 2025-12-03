@@ -3,7 +3,15 @@
 --- !u!78 &1
 TagManager:
   serializedVersion: 3
-  tags: []
+  tags:
+  - Surco1
+  - Surco2
+  - Surco3
+  - Surco4
+  - Tomato1
+  - Tomato2
+  - Tomato3
+  - Tomato4
   layers:
   - Default
   - TransparentFX
