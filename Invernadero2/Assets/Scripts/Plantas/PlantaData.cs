@@ -18,6 +18,7 @@ public class PlantaData : MonoBehaviour
     public float velocidadCrecimiento = 0.01f;
     
     [Header("Sistema de Riego")]
+    public bool seRiegoEsteCiclo = false;
     public float velocidadDeshidratacion = 0.5f; // Humedad que pierde por segundo
     public float tiempoDesdeUltimoRiego = 0f;
     public int vecesRegada = 0;
