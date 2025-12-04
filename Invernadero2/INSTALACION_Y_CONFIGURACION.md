@@ -1,4 +1,4 @@
-# Guía de Instalación y Ejecución - Simulador de Invernadero
+# Guía de instalación y configuración de la simulación
 
 ## Contenido
 
